@@ -101,8 +101,8 @@ struct ICloud : public CloudProvider
     ~ICloud() = default;
 
     // delete copy operations
-//    ICloud(const ICloud &) = delete;
-//    void operator=(const ICloud &) = delete;
+    ICloud(const ICloud &) = delete;
+    void operator=(const ICloud &) = delete;
 };
 
 class Blocker
@@ -120,7 +120,7 @@ class Blocker
     };
 
     es_client_t *m_clt = nullptr;
-    std::mutex m_mtx;
+    std::mutex m_statsMtx;
     Stats m_stats;
 
     std::optional<std::reference_wrapper<const CloudProvider>> ResolveCloudProvider(const std::vector<const std::string> &paths);
@@ -132,7 +132,7 @@ class Blocker
     // MARK: - Public
 public:
     std::map<CloudProviderId, CloudProvider> m_config;
-    std::vector<es_event_type_t> m_eventsOfInterest = {
+    const std::vector<es_event_type_t> m_eventsOfInterest = {
         // File System
         ES_EVENT_TYPE_AUTH_CLONE,
         ES_EVENT_TYPE_AUTH_CREATE,
@@ -153,8 +153,6 @@ public:
         ES_EVENT_TYPE_NOTIFY_WRITE,
     };
 
-//    std::vector<const std::string> m_blockedPaths; // TODO: thread safety (so far safe - reading only)
-
     Blocker() = default;
     ~Blocker() = default;
     // delete copy operations
@@ -171,6 +169,7 @@ public:
     // MARK: Callbacks
     void HandleEvent(es_client_t * const clt, es_message_t * const msg);
 
+    // MARK: Logging
     friend std::ostream & operator << (std::ostream &out, const Blocker::Stats &stats);
     void PrintStats();
 };

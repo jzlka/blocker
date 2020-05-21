@@ -5,14 +5,14 @@
 //  Created by Jozef on 19/05/2020.
 //  Copyright © 2020 Jozef Zuzelka. All rights reserved.
 //
-// TODO: osetrit vynimky na future a std::any a casty a vsetko
-// TODO: moze byt nebezpecne ked pridaju novy auth event vracajuci flagy a neosetrim to v default
+// TODO: osetrit vynimky na future a std::any, casty a vlastne vsetky ostatne
+// TODO: moze byt nebezpecne ked pridaju novy auth event vracajuci flagy a neosetri sa to v default
+// TODO: skontrolovat thread safety
 
 #include <any>
 #include <EndpointSecurity/EndpointSecurity.h>
 #include <future>
 #include <iostream>
-#include <optional>
 #include <sys/fcntl.h> // FREAD, FWRITE, FFLAGS
 #import <Foundation/Foundation.h>
 
@@ -36,7 +36,6 @@ bool CloudProvider::BundleIdIsAllowed(const es_string_token_t bundleId) const
 }
 
 
-
 // MARK: - Blocker
 Blocker& Blocker::GetInstance()
 {
@@ -44,11 +43,11 @@ Blocker& Blocker::GetInstance()
     return blocker;
 }
 
-#define ASYNCES 0
+#define BLOCKER_ASYNC_HANDLER 0
 bool Blocker::Init()
 {
     es_handler_block_t handler = ^(es_client_t *clt, const es_message_t *msg) {
-#if ASYNCES
+#if BLOCKER_ASYNC_HANDLER
         es_message_t * const msgCopy = es_copy_message(msg);
         if (msgCopy == nullptr) {
             std::cerr << "Could not copy message." << std::endl;
@@ -57,24 +56,18 @@ bool Blocker::Init()
         }
 
         dispatch_async(dispatch_get_main_queue(), ^(void){
-#else  // ASYNCES
+#else  // BLOCKER_ASYNC_HANDLER
             es_message_t *msgCopy = (es_message_t*)msg;
-#endif // ASYNCES
+#endif // BLOCKER_ASYNC_HANDLER
             uint64_t msecDeadline = mach_time_to_msecs(msgCopy->deadline);
             // Set deadline a bit sooner
             const std::chrono::milliseconds f_msecDeadline { msecDeadline - (msecDeadline >> 3) }; // substract 12.5%
-//            std::cout << "Deadline: "
-//                      << "Original <" << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::milliseconds(msecDeadline)).count()
-//                      << "> Set <" << std::chrono::duration_cast<std::chrono::seconds>(f_msecDeadline).count() << ">"
-//                      << std::endl;
-#define DO_STHES 1
-#if DO_STHES
-  #define WITH_DEADLINEES 1
-  #if WITH_DEADLINEES
+
             // TODO: may throw an exception,
             std::future f = std::async(std::launch::async, [clt,msgCopy]{ Blocker::GetInstance().HandleEvent(clt, msgCopy); });
 
             const auto f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
+            // The deadline is 0 for NOTIFY events
             if (msgCopy->action_type != ES_ACTION_TYPE_NOTIFY) {
                 if (f_res == std::future_status::timeout) {
                     Blocker::GetInstance().IncreaseStats(BlockerStats::EVENT_DROPPED_DEADLINE, msg->event_type);
@@ -84,45 +77,9 @@ bool Blocker::Init()
                     std::cerr << "Event deffered (should not happen)!\n";
                 }
             }
-  #else   // WITH_DEADLINEES
-            Blocker::GetInstance().HandleEvent(clt, msgCopy);
-  #endif  // WITH_DEADLINEES
-#else   // DO_STHES
-            Stats::EventStats &eventStats = m_stats.eventStats[msg->event_type];
-            // if it's the first event of its type don't check seq_num sequence
-            if (eventStats.firstEvent == true) {
-                eventStats.firstEvent = false;
-            } // if we already had any event of its type and the sequence is broken we dropped an event
-            else if ((eventStats.lastSeqNum + 1) != msg->seq_num) {
-                std::cerr << "Event dropped!\n";
-                IncreaseStats(BlockerStats::EVENT_DROPPED_KERNEL, msg->event_type, msg->seq_num - eventStats.lastSeqNum);
-            } // else everything is ok
-
-            // set the new lastSeq
-            eventStats.lastSeqNum = msg->seq_num;
-
-            if (msgCopy->action_type == ES_ACTION_TYPE_AUTH) {
-                  if (msgCopy->action_type == ES_ACTION_TYPE_AUTH) {
-                      // Handle subscribed AUTH events
-                      es_respond_result_t res;
-
-                      if (msgCopy->event_type == ES_EVENT_TYPE_AUTH_OPEN)
-                          res = es_respond_flags_result(clt, msgCopy, msg->event.open.fflag, false);
-                      else
-                          res = es_respond_auth_result(clt, msgCopy, ES_AUTH_RESULT_ALLOW, false);
-
-                      if (res != ES_RESPOND_RESULT_SUCCESS)
-                          std::cerr << "es_respond_auth_result: " << g_respondResultToStrMap.at(res) << std::endl;
-                  }
-              }
-              std::cerr << g_eventTypeToStrMap.at(msgCopy->event_type) << " Returning!\n";
-  #if ASYNCES
-              es_free_message(msgCopy);
-  #endif
-#endif  // DO_STHES
-#if ASYNCES
+#if BLOCKER_ASYNC_HANDLER
         });
-#endif // ASYNCES
+#endif // BLOCKER_ASYNC_HANDLER
     };
 
     es_new_client_result_t res = es_new_client(&m_clt, handler);
@@ -151,19 +108,20 @@ bool Blocker::Init()
     }
 
     // Cache needs to be explicitly cleared between program invocations
+    // TODO: validate this statement ^^
     es_clear_cache_result_t resCache = es_clear_cache(m_clt);
     if (ES_CLEAR_CACHE_RESULT_SUCCESS != resCache) {
         std::cerr << "es_clear_cache: " << resCache << std::endl;
         return false;
     }
 
-    // mute self
-    // note: you might not want this, but for a cmdline-based filemonitor
-    //       this ensures we don't constantly report writes to current /dev/tty
+    // Don't constantly report writes to current /dev/tty
     es_mute_path_literal(m_clt, [NSProcessInfo.processInfo.arguments[0] UTF8String]);
 
     // Subscribe to the events we're interested in
-    es_return_t subscribed = es_subscribe(m_clt, m_eventsOfInterest.data(), static_cast<uint32_t>(m_eventsOfInterest.size()));
+    es_return_t subscribed = es_subscribe(m_clt,
+                                          m_eventsOfInterest.data(),
+                                          static_cast<uint32_t>(m_eventsOfInterest.size()));
     if (subscribed == ES_RETURN_ERROR) {
         std::cerr << "es_subscribe: ES_RETURN_ERROR\n";
         return false;
@@ -183,7 +141,7 @@ void Blocker::Uninit()
 
 void Blocker::IncreaseStats(const BlockerStats metric, const es_event_type_t type, const uint64_t count )
 {
-    std::scoped_lock<std::mutex> lock(m_mtx);
+    std::scoped_lock<std::mutex> lock(m_statsMtx);
     switch (metric)
     {
         case BlockerStats::EVENT_COPY_ERR:
@@ -201,6 +159,7 @@ void Blocker::IncreaseStats(const BlockerStats metric, const es_event_type_t typ
 std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloudProvider(const std::vector<const std::string> &paths)
 {
     // TODO: recognize copy from one CloudProvider to another one
+    // TODO: check thread safety of m_config and of returned CloudProvider
     for (const auto &[cpId,cp] : m_config) {
         static const auto findOccurence = [&cp = std::as_const(cp)](const std::string& eventPath) {
             for (const auto &cpPath : cp.paths) {
@@ -242,7 +201,7 @@ void Blocker::HandleEvent(es_client_t * const clt, es_message_t * const msg)
         if (res != ES_RESPOND_RESULT_SUCCESS)
             std::cerr << "es_respond_auth_result: " << g_respondResultToStrMap.at(res) << std::endl;
     }
-#if ASYNCES
+#if BLOCKER_ASYNC_HANDLER
     // AppleDoc: Warning: Freeing a message from inside a handler block will cause your app to crash.
     // But as this block is running async from the original block, freeing should be OK.
     es_free_message(msg);
@@ -377,7 +336,7 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
         }
     }
 
-    // TODO: thread safety
+    std::scoped_lock<std::mutex> lock(m_statsMtx);
     Stats::EventStats &eventStats = m_stats.eventStats[msg->event_type];
     // if it's the first event of its type don't check seq_num sequence
     if (unlikely(eventStats.firstEvent == true)) {
@@ -396,6 +355,7 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
 
 void Blocker::PrintStats()
 {
+    std::scoped_lock<std::mutex> lock(m_statsMtx);
     std::cout << m_stats << std::endl;
 }
 
