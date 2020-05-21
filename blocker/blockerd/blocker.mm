@@ -22,9 +22,6 @@
 
 // From <Kernel/sys/fcntl.h>
 /* convert from open() flags to/from fflags; convert O_RD/WR to FREAD/FWRITE */
-// !!!: Dangerous! Use only for whole mask, not for every flag separately
-// Not every flag bigger by one, but their OR is if FREAD or FWRITE was used
-// see: File status flags documentation in sys/fcntl.h
 #define FFLAGS(oflags)  ((oflags) + 1)
 #define OFLAGS(fflags)  ((fflags) - 1)
 
@@ -158,7 +155,7 @@ void Blocker::IncreaseStats(const BlockerStats metric, const es_event_type_t typ
             m_stats.eventStats[type].copyErr += count;
             break;
         case BlockerStats::EVENT_DROPPED_KERNEL:
-            m_stats.eventStats[type].droppedKernel += count; // TODO: take into account ignored events
+            m_stats.eventStats[type].droppedKernel += count; // TODO: take ignored events into account
             break;
         case BlockerStats::EVENT_DROPPED_DEADLINE:
             m_stats.eventStats[type].droppedDeadline += count;
@@ -169,7 +166,7 @@ void Blocker::IncreaseStats(const BlockerStats metric, const es_event_type_t typ
 std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloudProvider(const std::vector<const std::string> &paths)
 {
     // TODO: recognize copy from one CloudProvider to another one
-    // TODO: check thread safety of m_config and of returned CloudProvider
+    // TODO: check thread safety of m_config and the returned CloudProvider
     for (const auto &[cpId,cp] : m_config) {
         static const auto findOccurence = [&cp = std::as_const(cp)](const std::string& eventPath) {
             for (const auto &cpPath : cp.paths)
@@ -211,14 +208,14 @@ void Blocker::HandleEvent(es_client_t * const clt, es_message_t * const msg)
     }
 #if BLOCKER_ASYNC_HANDLER
     // AppleDoc: Warning: Freeing a message from inside a handler block will cause your app to crash.
-    // But as this block is running async from the original block, freeing should be OK.
+    // But as this block is running asynchronously from the original block, freeing should be OK here.
     es_free_message(msg);
 #endif
 }
 
 std::any Blocker::HandleEventImpl(const es_message_t * const msg)
 {
-//    std::cout << "OPERATION IMPL: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
+    // std::cout << "OPERATION IMPL: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
     // Dirty temporary hack.
     // Set default non-destructive return. AUTH_OPEN returns flags, other auth events return AUTH_RESULT and notify does not care.
     std::any ret;
@@ -228,17 +225,32 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
         ret = static_cast<es_auth_result_t>(ES_AUTH_RESULT_ALLOW);
 
     try {
-        // !!!: WILL crash with unsupported event type
+        // At first get some metrics
+        // std::scoped_lock<std::mutex> lock(m_statsMtx); // !!!: causes deadlock. Fix thread safety!
+        Stats::EventStats &eventStats = m_stats.eventStats[msg->event_type];
+        // if it's the first event of its type don't check seq_num sequence
+        if (unlikely(eventStats.firstEvent == true)) {
+            eventStats.firstEvent = false;
+        } // if we already had any event of its type and the sequence is broken we dropped an event
+        else if (unlikely((eventStats.lastSeqNum + 1) != msg->seq_num)) {
+            std::cerr << "Event dropped!\n";
+            IncreaseStats(BlockerStats::EVENT_DROPPED_KERNEL, msg->event_type, msg->seq_num - eventStats.lastSeqNum);
+        } // else everything is ok
+
+        // set the new lastSeq
+        eventStats.lastSeqNum = msg->seq_num;
+
+        // !!!: This call WILL crash with unsupported event type
         const std::vector<const std::string> eventPaths = paths_from_event(msg);
 
         const auto cp = ResolveCloudProvider(eventPaths);
         // Not a supported cloud provider.
         if (!cp.has_value())
-            return ret; // TODO: what about lastSeq?? Why did it show 0 drops?
+            return ret;
 
         switch(msg->event_type) {
             // MARK: NOTIFY
-            // TODO: design it better to make sure that this switch matches m_eventsOfInterest array
+            // TODO: make a better design to make sure that this switch matches m_eventsOfInterest array
             case ES_EVENT_TYPE_NOTIFY_KEXTLOAD:
             case ES_EVENT_TYPE_NOTIFY_KEXTUNLOAD:
             case ES_EVENT_TYPE_NOTIFY_UNMOUNT:
@@ -258,7 +270,7 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
                     prefixToPrint = "NOTIFY: ";
                 }
                 else {
-                    // TODO: we cannot do anything with notify event here
+                    // TODO: we cannot do anything with notify event here. Deal with it (mainly with WRITE which was invoked by `ls`)
                     prefixToPrint = "ERR: Cannot block ";
                 }
 
@@ -281,7 +293,7 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
 
                 // If any restriction is set
                 if (cp->get().bl != BlockLevel::NONE && !cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
-                    uint32_t mask = ~0; // No change...if anything goes wrong
+                    uint32_t mask = ~0; // Do not change the flags...if anything goes wrong
 
                     if (cp->get().bl == BlockLevel::RONLY) {
                         mask = ~(FWRITE | FAPPEND | O_CREAT); // TODO: validate these flags
@@ -300,7 +312,6 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
                 for (const auto &path : eventPaths)
                     std::cout << " '" << path << "'";
                 std::cout << " by " << msg->process->signing_id << std::endl;
-//                std::cout << msg << std::endl;
 
                 free(flags);        flags = nullptr;
                 free(allowedFlags); allowedFlags = nullptr;
@@ -327,7 +338,6 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
                 for (const auto &path : eventPaths)
                     std::cout << " '" << path << "'";
                 std::cout << " by " << msg->process->signing_id << std::endl;
-//                std::cout << msg << std::endl;
                 break;
             }
             case ES_EVENT_TYPE_AUTH_CREATE: // TODO: check when it's called for proper blocking
@@ -353,7 +363,6 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
                 for (const auto &path : eventPaths)
                     std::cout << " '" << path << "'";
                 std::cout << " by " << msg->process->signing_id << std::endl;
-//                std::cout << msg << std::endl;
                 break;
             }
             default: {
@@ -364,20 +373,6 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
                 return ret; // to avoid indexing of dropped events vector with unsupported event...just in case - more for debug
             }
         }
-
-//        std::scoped_lock<std::mutex> lock(m_statsMtx); // !!!: causes deadlock
-        Stats::EventStats &eventStats = m_stats.eventStats[msg->event_type];
-        // if it's the first event of its type don't check seq_num sequence
-        if (unlikely(eventStats.firstEvent == true)) {
-            eventStats.firstEvent = false;
-        } // if we already had any event of its type and the sequence is broken we dropped an event
-        else if (unlikely((eventStats.lastSeqNum + 1) != msg->seq_num)) {
-            std::cerr << "Event dropped!\n";
-            IncreaseStats(BlockerStats::EVENT_DROPPED_KERNEL, msg->event_type, msg->seq_num - eventStats.lastSeqNum);
-        } // else everything is ok
-
-        // set the new lastSeq
-        eventStats.lastSeqNum = msg->seq_num;
     }
     catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
