@@ -43,6 +43,7 @@
 		0990119C2474632D00DDFE69 /* Tools.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = Tools.mm; sourceTree = "<group>"; };
 		0990119D2474632D00DDFE69 /* Tools.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Tools.hpp; sourceTree = "<group>"; };
 		0990119E2474632D00DDFE69 /* SignalHandler.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SignalHandler.cpp; sourceTree = "<group>"; };
+		099011A12476FE9000DDFE69 /* logger.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = logger.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +105,7 @@
 				099011992474632D00DDFE69 /* Tools */,
 				0990119E2474632D00DDFE69 /* SignalHandler.cpp */,
 				099011982474632D00DDFE69 /* SignalHandler.hpp */,
+				099011A12476FE9000DDFE69 /* logger.hpp */,
 			);
 			name = Common;
 			path = ../Common;

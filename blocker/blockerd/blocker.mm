@@ -22,6 +22,9 @@
 
 // From <Kernel/sys/fcntl.h>
 /* convert from open() flags to/from fflags; convert O_RD/WR to FREAD/FWRITE */
+// !!!: Dangerous! Use only for whole mask, not for every flag separately
+// Not every flag bigger by one, but their OR is if FREAD or FWRITE was used
+// see: File status flags documentation in sys/fcntl.h
 #define FFLAGS(oflags)  ((oflags) + 1)
 #define OFLAGS(fflags)  ((fflags) - 1)
 
@@ -37,6 +40,13 @@ bool CloudProvider::BundleIdIsAllowed(const es_string_token_t bundleId) const
 
 
 // MARK: - Blocker
+static const inline std::map<BlockLevel, const std::string> g_blockLvlToStr = {
+    {BlockLevel::NONE,  "NONE"},
+    {BlockLevel::RONLY, "RONLY"},
+    {BlockLevel::FULL,  "FULL"},
+};
+
+
 Blocker& Blocker::GetInstance()
 {
     static Blocker blocker;
@@ -162,12 +172,10 @@ std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloud
     // TODO: check thread safety of m_config and of returned CloudProvider
     for (const auto &[cpId,cp] : m_config) {
         static const auto findOccurence = [&cp = std::as_const(cp)](const std::string& eventPath) {
-            for (const auto &cpPath : cp.paths) {
-                if (eventPath.find(cpPath) != std::string::npos) {
-                    std::cout << "*** Occurence found: " << eventPath << std::endl;
+            for (const auto &cpPath : cp.paths)
+                if (eventPath.find(cpPath) != std::string::npos)
                     return true;
-                }
-            }
+
             return false;
         };
 
@@ -210,146 +218,173 @@ void Blocker::HandleEvent(es_client_t * const clt, es_message_t * const msg)
 
 std::any Blocker::HandleEventImpl(const es_message_t * const msg)
 {
+//    std::cout << "OPERATION IMPL: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
+    // Dirty temporary hack.
+    // Set default non-destructive return. AUTH_OPEN returns flags, other auth events return AUTH_RESULT and notify does not care.
     std::any ret;
-    std::string prefixToPrint;
+    if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
+        ret = static_cast<uint32_t>(msg->event.open.fflag);
+    else
+        ret = static_cast<es_auth_result_t>(ES_AUTH_RESULT_ALLOW);
 
-    switch(msg->event_type) {
-        // MARK: NOTIFY
-        // TODO: design it better to make sure that this switch matches m_eventsOfInterest array
-        case ES_EVENT_TYPE_NOTIFY_KEXTLOAD:
-        case ES_EVENT_TYPE_NOTIFY_KEXTUNLOAD:
-        case ES_EVENT_TYPE_NOTIFY_UNMOUNT:
-        {
-            std::cout << "NOTIFY OPERATION: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
-            std::cout << msg << std::endl;
-            break;
-        }
-        case ES_EVENT_TYPE_NOTIFY_ACCESS:
-        case ES_EVENT_TYPE_NOTIFY_CLOSE:
-        case ES_EVENT_TYPE_NOTIFY_EXCHANGEDATA:
-        case ES_EVENT_TYPE_NOTIFY_WRITE:
-        {
-            const std::vector<const std::string> eventPaths = paths_from_file_event(msg);
+    try {
+        // !!!: WILL crash with unsupported event type
+        const std::vector<const std::string> eventPaths = paths_from_event(msg);
 
-            const auto cp = ResolveCloudProvider(eventPaths);
-            // Not a supported cloud provider.
-            if (!cp.has_value())
+        const auto cp = ResolveCloudProvider(eventPaths);
+        // Not a supported cloud provider.
+        if (!cp.has_value())
+            return ret; // TODO: what about lastSeq?? Why did it show 0 drops?
+
+        switch(msg->event_type) {
+            // MARK: NOTIFY
+            // TODO: design it better to make sure that this switch matches m_eventsOfInterest array
+            case ES_EVENT_TYPE_NOTIFY_KEXTLOAD:
+            case ES_EVENT_TYPE_NOTIFY_KEXTUNLOAD:
+            case ES_EVENT_TYPE_NOTIFY_UNMOUNT:
+            {
+                std::cout << "NOTIFY OPERATION: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
+                std::cout << msg << std::endl;
                 break;
-
-            // If no restriction is set
-            if (cp->get().bl == BlockLevel::NONE || cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
-                prefixToPrint = "NOTIFY: ";
             }
-            // TODO: we cannot do anything with notify event here
-            else {
-                prefixToPrint = "ERR: Cannot block ";
-            }
+            case ES_EVENT_TYPE_NOTIFY_ACCESS:
+            case ES_EVENT_TYPE_NOTIFY_CLOSE:
+            case ES_EVENT_TYPE_NOTIFY_EXCHANGEDATA:
+            case ES_EVENT_TYPE_NOTIFY_WRITE:
+            {
+                std::string prefixToPrint;
+                // If no restriction is set
+                if (cp->get().bl == BlockLevel::NONE || cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
+                    prefixToPrint = "NOTIFY: ";
+                }
+                else {
+                    // TODO: we cannot do anything with notify event here
+                    prefixToPrint = "ERR: Cannot block ";
+                }
 
-            std::cout << prefixToPrint << g_eventTypeToStrMap.at(msg->event_type) << " operation at";
-            for (const auto &path : eventPaths)
-                std::cout << " '" << path << "'";
-            std::cout << " by " << msg->process->signing_id << std::endl;
-            std::cout << msg << std::endl;
-            break;
-        }
-        // MARK: AUTH
-        case ES_EVENT_TYPE_AUTH_OPEN:
-        {
-            ret = (uint32_t)msg->event.open.fflag;
-            const std::vector<const std::string> eventPaths = paths_from_file_event(msg);
-            
-            const auto cp = ResolveCloudProvider(eventPaths);
-            // Not a supported cloud provider.
-            if (!cp.has_value())
+                std::cout << std::endl << prefixToPrint << std::endl
+                          << (std::any_cast<es_auth_result_t>(ret) == ES_AUTH_RESULT_DENY ? " BLOCKING " : " ALLOWING ")
+                          << "(" << g_blockLvlToStr.at(cp->get().bl) << ") "
+                          << g_eventTypeToStrMap.at(msg->event_type) << " operation at" << std::flush;
+                for (const auto &path : eventPaths)
+                    std::cout << " '" << path << "'";
+                std::cout << " by " << msg->process->signing_id << std::endl;
+                std::cout << msg << std::endl;
                 break;
-            
-            // If no restriction is set
-            if (cp->get().bl == BlockLevel::NONE || cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
-                prefixToPrint = "Ignoring ";
-            } else if (cp->get().bl == BlockLevel::RONLY) {
-                ret = (uint32_t)FFLAGS(O_RDONLY);
-                prefixToPrint = "BLOCKING (RONLY) ";
-            } else if (cp->get().bl == BlockLevel::FULL) {
-                ret = (uint32_t)0;
-                prefixToPrint = "BLOCKING (FULL) ";
             }
+            // MARK: AUTH
+            case ES_EVENT_TYPE_AUTH_OPEN:
+            {
+                char *allowedFlags = nullptr;
+                char *blockedFlags = nullptr;
+                char *flags = esfflagstostr(std::any_cast<uint32_t>(ret));
 
-            std::cout << prefixToPrint << g_eventTypeToStrMap.at(msg->event_type) << " operation at";
-            for (const auto &path : eventPaths)
-                std::cout << " '" << path << "'";
-            std::cout << " by " << msg->process->signing_id << std::endl;
-            std::cout << msg << std::endl;
-            break;
-        }
-        case ES_EVENT_TYPE_AUTH_MOUNT:
-        {
-            ret = ES_AUTH_RESULT_ALLOW;
-            std::cout << "ALLOWING OPERATION: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
-            std::cout << msg << std::endl;
-            break;
-        }
-        case ES_EVENT_TYPE_AUTH_CREATE:
-        case ES_EVENT_TYPE_AUTH_CLONE:
-        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE:
-        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE:
-        case ES_EVENT_TYPE_AUTH_LINK:
-        case ES_EVENT_TYPE_AUTH_READDIR:
-        case ES_EVENT_TYPE_AUTH_READLINK:
-        case ES_EVENT_TYPE_AUTH_RENAME:
-        case ES_EVENT_TYPE_AUTH_TRUNCATE:
-        case ES_EVENT_TYPE_AUTH_UNLINK:
-        {
-            ret = ES_AUTH_RESULT_ALLOW;
-            const std::vector<const std::string> eventPaths = paths_from_file_event(msg);
+                // If any restriction is set
+                if (cp->get().bl != BlockLevel::NONE && !cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
+                    uint32_t mask = ~0; // No change...if anything goes wrong
 
-            const auto cp = ResolveCloudProvider(eventPaths);
-            // Not a supported cloud provider.
-            if (!cp.has_value())
-               break;
+                    if (cp->get().bl == BlockLevel::RONLY) {
+                        mask = ~(FWRITE | FAPPEND | O_CREAT); // TODO: validate these flags
+                    } else {
+                        mask = 0;
+                    }
+                    ret = (uint32_t)(msg->event.open.fflag & mask);
+                }
+                allowedFlags = esfflagstostr(std::any_cast<uint32_t>(ret));
+                blockedFlags = esfflagstostr(std::any_cast<uint32_t>(ret) ^ msg->event.open.fflag);
 
-            std::string prefixToPrint;
-            // If no restriction is set
-            if (cp->get().bl == BlockLevel::NONE || cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
-               prefixToPrint = "Ignoring ";
-            } else if (cp->get().bl == BlockLevel::RONLY) {
-               // TODO: what to do with ronly !!!:
-                ret = ES_AUTH_RESULT_DENY;
-               prefixToPrint = "BLOCKING (RONLY) ";
-            } else if (cp->get().bl == BlockLevel::FULL) {
-                ret = ES_AUTH_RESULT_DENY;
-               prefixToPrint = "BLOCKING (FULL) ";
+                std::cout << std::endl
+                          << "(" << g_blockLvlToStr.at(cp->get().bl) << ") "
+                          << "ALLOWING (" << allowedFlags << "), BLOCKING (" << blockedFlags << ") "
+                          << g_eventTypeToStrMap.at(msg->event_type) << " operation at";
+                for (const auto &path : eventPaths)
+                    std::cout << " '" << path << "'";
+                std::cout << " by " << msg->process->signing_id << std::endl;
+//                std::cout << msg << std::endl;
+
+                free(flags);        flags = nullptr;
+                free(allowedFlags); allowedFlags = nullptr;
+                free(blockedFlags); blockedFlags = nullptr;
+                break;
             }
+            case ES_EVENT_TYPE_AUTH_MOUNT:
+            {
+                std::cout << std::endl << "ALLOWING OPERATION: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
+                std::cout << msg << std::endl;
+                break;
+            }
+            case ES_EVENT_TYPE_AUTH_READDIR:
+            {
+                // DENY only in FULL blocking mode
+                if (cp->get().bl == BlockLevel::FULL && !cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
+                    ret = static_cast<es_auth_result_t>(ES_AUTH_RESULT_DENY);
+                }
 
-            std::cout << prefixToPrint << g_eventTypeToStrMap.at(msg->event_type) << " operation at";
-            for (const auto &path : eventPaths)
-               std::cout << " '" << path << "'";
-            std::cout << " by " << msg->process->signing_id << std::endl;
-            std::cout << msg << std::endl;
-            break;
+                std::cout << std::endl
+                          << "(" << g_blockLvlToStr.at(cp->get().bl) << ") "
+                          << (std::any_cast<es_auth_result_t>(ret) == ES_AUTH_RESULT_DENY ? "BLOCKING " : "ALLOWING ")
+                          << g_eventTypeToStrMap.at(msg->event_type) << " operation at";
+                for (const auto &path : eventPaths)
+                    std::cout << " '" << path << "'";
+                std::cout << " by " << msg->process->signing_id << std::endl;
+//                std::cout << msg << std::endl;
+                break;
+            }
+            case ES_EVENT_TYPE_AUTH_CREATE: // TODO: check when it's called for proper blocking
+            case ES_EVENT_TYPE_AUTH_CLONE: // TODO: check when it's called for proper blocking
+            case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE: // TODO: check when it's called for proper blocking
+            case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE: // TODO: check when it's called for proper blocking
+            case ES_EVENT_TYPE_AUTH_LINK: // TODO: check when it's called for proper blocking
+            case ES_EVENT_TYPE_AUTH_READLINK:
+            case ES_EVENT_TYPE_AUTH_RENAME: // TODO: check when it's called for proper blocking
+            case ES_EVENT_TYPE_AUTH_TRUNCATE: // TODO: check when it's called for proper blocking
+            case ES_EVENT_TYPE_AUTH_UNLINK: // TODO: check when it's called for proper blocking
+            {
+                // Also RONLY mode, these events are content-changing operations so we don't have to check the mode.
+                // Just deny the operation...
+                if (cp->get().bl != BlockLevel::NONE && !cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
+                    ret = (es_auth_result_t)ES_AUTH_RESULT_DENY;
+                }
+
+                std::cout << std::endl
+                          << "(" << g_blockLvlToStr.at(cp->get().bl) << ") "
+                          << (std::any_cast<es_auth_result_t>(ret) == ES_AUTH_RESULT_DENY ? "BLOCKING " : "ALLOWING ")
+                          << g_eventTypeToStrMap.at(msg->event_type) << " operation at";
+                for (const auto &path : eventPaths)
+                    std::cout << " '" << path << "'";
+                std::cout << " by " << msg->process->signing_id << std::endl;
+//                std::cout << msg << std::endl;
+                break;
+            }
+            default: {
+                if (msg->action_type == ES_ACTION_TYPE_AUTH)
+                    ret = (es_auth_result_t)ES_AUTH_RESULT_ALLOW;
+                std::cout << std::endl << "DEFAULT (should not happen!): " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
+                std::cout << msg << std::endl;
+                return ret; // to avoid indexing of dropped events vector with unsupported event...just in case - more for debug
+            }
         }
-        default: {
-            if (msg->action_type == ES_ACTION_TYPE_AUTH)
-                ret = ES_AUTH_RESULT_ALLOW;
-            std::cout << "DEFAULT (should not happen!): " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
-            std::cout << msg << std::endl;
-            return ret; // to avoid indexing of dropped events vector with unsupported event...just in case - more for debug
-        }
+
+//        std::scoped_lock<std::mutex> lock(m_statsMtx); // !!!: causes deadlock
+        Stats::EventStats &eventStats = m_stats.eventStats[msg->event_type];
+        // if it's the first event of its type don't check seq_num sequence
+        if (unlikely(eventStats.firstEvent == true)) {
+            eventStats.firstEvent = false;
+        } // if we already had any event of its type and the sequence is broken we dropped an event
+        else if (unlikely((eventStats.lastSeqNum + 1) != msg->seq_num)) {
+            std::cerr << "Event dropped!\n";
+            IncreaseStats(BlockerStats::EVENT_DROPPED_KERNEL, msg->event_type, msg->seq_num - eventStats.lastSeqNum);
+        } // else everything is ok
+
+        // set the new lastSeq
+        eventStats.lastSeqNum = msg->seq_num;
     }
-
-    std::scoped_lock<std::mutex> lock(m_statsMtx);
-    Stats::EventStats &eventStats = m_stats.eventStats[msg->event_type];
-    // if it's the first event of its type don't check seq_num sequence
-    if (unlikely(eventStats.firstEvent == true)) {
-        eventStats.firstEvent = false;
-    } // if we already had any event of its type and the sequence is broken we dropped an event
-    else if (unlikely((eventStats.lastSeqNum + 1) != msg->seq_num)) {
-        std::cerr << "Event dropped!\n";
-        IncreaseStats(BlockerStats::EVENT_DROPPED_KERNEL, msg->event_type, msg->seq_num - eventStats.lastSeqNum);
-    } // else everything is ok
-
-    // set the new lastSeq
-    eventStats.lastSeqNum = msg->seq_num;
-
+    catch (const std::exception &e) {
+        std::cerr << e.what() << std::endl;
+    }
+    catch (...) {
+        std::cerr << "Unknown exception!" << std::endl;
+    }
     return ret;
 }
 
