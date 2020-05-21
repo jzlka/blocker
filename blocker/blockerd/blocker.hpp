@@ -9,28 +9,14 @@
 #ifndef blocker_hpp
 #define blocker_hpp
 
+#include <any>
 #include <cstdint>
+#include <EndpointSecurity/EndpointSecurity.h>
+#include <functional>
 #include <map>
 #include <mutex>
-#include <vector>
 #include <string>
-#include <EndpointSecurity/ESTypes.h>
-
-enum class BlockLevel : uint8_t
-{
-    NONE,
-    RONLY,
-    FULL,
-};
-
-enum class CloudProvider : uint8_t
-{
-    UNKNOWN,
-    ICLOUD,
-    DROPBOX,
-    ONEDRIVE,
-    //Google Drive File Stream
-};
+#include <vector>
 
 enum class BlockerStats : uint8_t
 {
@@ -39,33 +25,119 @@ enum class BlockerStats : uint8_t
     EVENT_DROPPED_DEADLINE,
 };
 
+enum class BlockLevel : uint8_t
+{
+    NONE,
+    RONLY,
+    FULL,
+};
+
+enum class CloudProviderId : uint8_t
+{
+    NONE,
+    ICLOUD,
+    DROPBOX,
+    ONEDRIVE,
+    //Google Drive File Stream
+};
+
+struct CloudProvider
+{
+    CloudProviderId id = CloudProviderId::NONE;
+    BlockLevel bl = BlockLevel::NONE;
+    std::vector<std::string> paths;
+    std::vector<std::string> allowedBundleIds;
+
+    CloudProvider() = default;
+    virtual ~CloudProvider() = default;
+    // delete copy operations
+    CloudProvider(const CloudProvider &) = delete;
+    void operator=(const CloudProvider &) = delete;
+    // move operations
+    CloudProvider(CloudProvider&& other)
+    {
+        id = other.id;
+        bl = other.bl;
+        paths = std::move(other.paths);
+        allowedBundleIds = std::move(other.allowedBundleIds);
+
+        other.id = CloudProviderId::NONE;
+        other.bl = BlockLevel::NONE;
+        other.paths.clear();
+        other.allowedBundleIds.clear();
+    }
+
+    CloudProvider& operator=(CloudProvider&& other)
+    {
+        if (this == &other)
+            return *this;
+
+        id = other.id;
+        bl = other.bl;
+        paths = std::move(other.paths);
+        allowedBundleIds = std::move(other.allowedBundleIds);
+
+        other.id = CloudProviderId::NONE;
+        other.bl = BlockLevel::NONE;
+        other.paths.clear();
+        other.allowedBundleIds.clear();
+
+        return *this;
+    }
+
+    bool BundleIdIsAllowed(const es_string_token_t bundleId) const;
+};
+
+struct ICloud : public CloudProvider
+{
+    ICloud(const BlockLevel Bl, const std::vector<std::string> &Paths) {
+        id = CloudProviderId::ICLOUD;
+        bl = Bl;
+        paths = Paths;
+        allowedBundleIds = {
+            "com.apple.bird",
+        };
+    };
+    ~ICloud() = default;
+
+    // delete copy operations
+//    ICloud(const ICloud &) = delete;
+//    void operator=(const ICloud &) = delete;
+};
+
 class Blocker
 {
     struct Stats {
-        int copyErr         = 0;
-        int droppedKernel   = 0;
-        int droppedDeadline = 0;
+        struct EventStats {
+            uint64_t firstEvent      = true;
+            uint64_t lastSeqNum      = 0;
+            uint64_t copyErr         = 0;
+            uint64_t droppedKernel   = 0;
+            uint64_t droppedDeadline = 0;
+        };
+
+        std::map<es_event_type_t, EventStats> eventStats;
     };
 
-    es_client_t *m_clt      = nullptr;
+    es_client_t *m_clt = nullptr;
     std::mutex m_mtx;
     Stats m_stats;
 
+    std::optional<std::reference_wrapper<const CloudProvider>> ResolveCloudProvider(const std::vector<const std::string> &paths);
+
+    // MARK: Callbacks
+    std::any HandleEventImpl(const es_message_t * const msg);
+
+
+    // MARK: - Public
 public:
-    std::map<CloudProvider, BlockLevel> m_config;
+    std::map<CloudProviderId, CloudProvider> m_config;
     std::vector<es_event_type_t> m_eventsOfInterest = {
-        // Process
-        ES_EVENT_TYPE_AUTH_EXEC,
-        ES_EVENT_TYPE_NOTIFY_EXIT,
-        ES_EVENT_TYPE_NOTIFY_FORK,
         // File System
-        ES_EVENT_TYPE_NOTIFY_ACCESS,
         ES_EVENT_TYPE_AUTH_CLONE,
-        ES_EVENT_TYPE_NOTIFY_CLOSE,
         ES_EVENT_TYPE_AUTH_CREATE,
         ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE,
         ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE,
-        ES_EVENT_TYPE_NOTIFY_EXCHANGEDATA,
         ES_EVENT_TYPE_AUTH_LINK,
         ES_EVENT_TYPE_AUTH_MOUNT,
         ES_EVENT_TYPE_AUTH_OPEN,
@@ -74,16 +146,14 @@ public:
         ES_EVENT_TYPE_AUTH_RENAME,
         ES_EVENT_TYPE_AUTH_TRUNCATE,
         ES_EVENT_TYPE_AUTH_UNLINK,
+        ES_EVENT_TYPE_NOTIFY_ACCESS,
+        ES_EVENT_TYPE_NOTIFY_CLOSE,
+        ES_EVENT_TYPE_NOTIFY_EXCHANGEDATA,
         ES_EVENT_TYPE_NOTIFY_UNMOUNT,
         ES_EVENT_TYPE_NOTIFY_WRITE,
-        // System
-        ES_EVENT_TYPE_NOTIFY_IOKIT_OPEN,
-        ES_EVENT_TYPE_NOTIFY_KEXTLOAD,
-        ES_EVENT_TYPE_NOTIFY_KEXTUNLOAD,
     };
 
-    std::vector<const std::string> m_blockedPaths; // TODO: thread safety
-
+//    std::vector<const std::string> m_blockedPaths; // TODO: thread safety (so far safe - reading only)
 
     Blocker() = default;
     ~Blocker() = default;
@@ -93,15 +163,16 @@ public:
 
     static Blocker& GetInstance();
     bool Init();
-    bool Uninit();
-
-
-    // MARK: Callbacks
-    void HandleEvent(es_client_t * const clt, const es_message_t *msg);
-    void HandleNotifyEvent(const es_message_t *msg);
+    void Uninit();
 
     // MARK: Stats
-    void IncreaseStats(const BlockerStats type, int count = 1);
+    void IncreaseStats(const BlockerStats metric, const es_event_type_t type, const uint64_t count = 1);
+
+    // MARK: Callbacks
+    void HandleEvent(es_client_t * const clt, es_message_t * const msg);
+
+    friend std::ostream & operator << (std::ostream &out, const Blocker::Stats &stats);
+    void PrintStats();
 };
 
 #endif /* blocker_hpp */
