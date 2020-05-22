@@ -51,9 +51,9 @@ void printHelp()
 
 static const struct option longopts[] =
 {
-    { "icloud",      required_argument, nullptr,    'i' },
-    { "dropbox",     required_argument, nullptr,    'd' },
-    { "verbosity",   required_argument, nullptr,    'v' },
+    { "icloud",      optional_argument, nullptr,    'i' },
+    { "dropbox",     optional_argument, nullptr,    'd' },
+    { "verbosity",   optional_argument, nullptr,    'v' },
     { "help",        no_argument,       nullptr,    'h' },
     { nullptr,       0,                 nullptr,     0  }
 };
@@ -62,9 +62,6 @@ static const struct option longopts[] =
 bool parseArguments(const int argc, char * const argv[], bool &help, std::unordered_map<CloudProviderId, BlockLevel> &config)
 {
     Logger &logger = Logger::getInstance();
-
-    if (argc < 2 || argc > (sizeof(longopts) / sizeof(longopts[0])))
-        return false;
 
     int optionIndex = 0;
     char opt = 0;
@@ -115,10 +112,7 @@ int main(const int argc, char * const argv[]) {
     signal(SIGABRT, signalHandler);
 
     const char* demoName = "blockerd";
-    std::string demoPath = "/tmp/" + std::string(demoName) + "-demo";
-
     std::cout << "(" << demoName << ") Hello, World!\n";
-    std::cout << "Point of interest: " << demoPath << std::endl << std::endl;
 
     @autoreleasepool {
 
@@ -138,14 +132,10 @@ int main(const int argc, char * const argv[]) {
         }
 
         Blocker &blocker = Blocker::GetInstance();
-        for (const auto &[cpId, blkLvl] : config) {
-            if (cpId == CloudProviderId::ICLOUD)
-                blocker.m_config[cpId] = ICloud(blkLvl, {demoPath});
-            else
-                panic("");
-        }
-
         if (!blocker.Init())
+            return EXIT_FAILURE;
+
+        if (!blocker.Configure(config))
             return EXIT_FAILURE;
 
         dispatch_main();

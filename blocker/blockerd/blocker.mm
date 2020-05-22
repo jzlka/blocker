@@ -12,12 +12,18 @@
 #include <any>
 #include <EndpointSecurity/EndpointSecurity.h>
 #include <future>
+#include <fstream>
 #include <iostream>
-#include <sys/fcntl.h> // FREAD, FWRITE, FFLAGS
+#include <paths.h>      // _PATH_CONSOLE
+#include <pwd.h>        // getpwuid()
+#include <regex>
+#include <sstream>
+#include <sys/fcntl.h>  // FREAD, FWRITE
 #import <Foundation/Foundation.h>
 
 #include "../../Common/Tools/Tools.hpp"
 #include "../../Common/Tools/Tools-ES.hpp"
+#include "../../Common/logger.hpp"
 #include "blocker.hpp"
 
 // From <Kernel/sys/fcntl.h>
@@ -28,11 +34,59 @@
 #define likely(x)      __builtin_expect(!!(x), 1) // [[likely]] for c++20
 #define unlikely(x)    __builtin_expect(!!(x), 0) // [[unlikely]] for c++20
 
+Logger &g_logger = Logger::getInstance();
+
 
 // MARK: - CloudProvider
 bool CloudProvider::BundleIdIsAllowed(const es_string_token_t bundleId) const
 {
     return (std::find(allowedBundleIds.begin(), allowedBundleIds.end(), to_string(bundleId)) != allowedBundleIds.end());
+}
+
+std::vector<std::string> ICloud::FindPaths(const std::string &homePath)
+{
+    return { homePath + "/Library/Mobile Documents" }; // $HOME/Library/Mobile Documents/com~apple~CloudDocs
+    // TODO: in full blocking mode an exception needs to be added for linked Desktop and Downloads folder?
+}
+
+std::vector<std::string> Dropbox::FindPaths(const std::string &homePath)
+{
+    std::string path;
+
+
+    const std::string configFile = homePath + "/.dropbox/info.json";
+    std::ifstream dropboxInfo(configFile);
+    if (!dropboxInfo.is_open()) {
+        g_logger.log(LogLevel::ERR, "Dropbox: Could not open config file ", configFile);
+        return {};
+    }
+
+    const std::regex pathRegex("\"path\": \"(.*)\","); // TODO: If the path contains ", we are f...
+    std::smatch pathMatch;
+    std::string line;
+    int i = 0;
+    while (std::getline(dropboxInfo, line))
+    {
+        if (++i > 1)
+            panic("Needs to be implemented: Dropbox configuration has more than one line!");
+
+        std::istringstream iss(line);
+        g_logger.log(LogLevel::VERBOSE, "Dropbox: config read: ", line);
+
+        if (!std::regex_search(line, pathMatch, pathRegex)) {
+            g_logger.log(LogLevel::ERR, "Dropbox: Regex search failed.");
+            return {};
+        }
+
+        if (pathMatch.size() != 2) {
+            g_logger.log(LogLevel::ERR, "Dropbox: No match found in path regex.");
+            return {};
+        }
+
+        g_logger.log(LogLevel::VERBOSE, "Dropbox: match[0] ", pathMatch[0], " match[1] ", pathMatch[1]);
+        path = pathMatch[1];
+    }
+    return { path };
 }
 
 
@@ -144,6 +198,50 @@ void Blocker::Uninit()
     }
 }
 
+bool Blocker::Configure(const std::unordered_map<CloudProviderId, BlockLevel> &config)
+{
+    std::scoped_lock<std::mutex> lock(m_configMtx);
+
+    struct stat info;
+    if (lstat(_PATH_CONSOLE, &info)) {
+        g_logger.log(LogLevel::ERR, "Could not get the active user");
+        return false;
+    }
+
+    const struct passwd * const pwd = getpwuid(info.st_uid);
+    if (pwd == nullptr)  {
+        g_logger.log(LogLevel::ERR, "Could not get user information from UID");
+        return false;
+    }
+    const std::string homePath = "/Users/" + std::string(pwd->pw_name);
+
+    std::vector<std::string> paths;
+    for (const auto &[cpId, blkLvl] : config) {
+        switch (cpId) {
+            case CloudProviderId::ICLOUD:
+            {
+                paths = ICloud::FindPaths(homePath);
+                m_config[cpId] = ICloud(blkLvl, paths);
+                break;
+            }
+            case CloudProviderId::DROPBOX:
+            {
+                paths = Dropbox::FindPaths(homePath);
+                m_config[cpId] = Dropbox(blkLvl, paths);
+                break;
+            }
+            default:
+                break;
+        }
+
+        if (paths.empty())
+            g_logger.log(LogLevel::ERR, "Could not set ", g_cpToStr.at(cpId), " paths.");
+        for (const auto &path : paths)
+            g_logger.log(LogLevel::INFO, g_cpToStr.at(cpId), ": Path set to \"", path, "\".");
+    }
+    return true;
+}
+
 void Blocker::IncreaseStats(const BlockerStats metric, const es_event_type_t type, const uint64_t count)
 {
     std::scoped_lock<std::mutex> lock(m_statsMtx);
@@ -161,24 +259,23 @@ void Blocker::IncreaseStats(const BlockerStats metric, const es_event_type_t typ
     }
 }
 
-std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloudProvider(const std::vector<const std::string> &paths)
+std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloudProvider(const std::vector<const std::string> &eventPaths)
 {
     // TODO: recognize copy from one CloudProvider to another one
     // TODO: check thread safety of m_config and the returned CloudProvider
+    // TODO: make more effective
+    // For every cloud provider
     for (const auto &[cpId,cp] : m_config) {
-        static const auto findOccurence = [&cp = std::as_const(cp)](const std::string& eventPath) {
-            for (const auto &cpPath : cp.paths)
+        // For every path in the event
+        for (const auto &eventPath : eventPaths) {
+            // Check if the event path is one of cloud provider paths
+            for (const auto &cpPath : cp.paths) {
                 if (eventPath.find(cpPath) != std::string::npos)
-                    return true;
-
-            return false;
-        };
-
-        // found if the path belongs to any cloud
-        if (std::any_of(paths.cbegin(), paths.cend(), findOccurence)) {
-            return cp;
+                    return cp;
+            }
         }
     }
+
     return std::nullopt;
 }
 
@@ -186,6 +283,7 @@ std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloud
 void Blocker::HandleEvent(es_client_t * const clt, const es_message_t * const msg)
 {
     try {
+        g_logger.log(LogLevel::VERBOSE, g_eventTypeToStrMap.at(msg->event_type));
         std::any ret = HandleEventImpl(msg);
         // If it's an AUTH event, we need to return something
         if (msg->action_type == ES_ACTION_TYPE_AUTH) {
@@ -282,7 +380,7 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
             for (const auto &path : eventPaths)
                 std::cout << " '" << path << "'";
             std::cout << " by " << msg->process->signing_id << std::endl;
-            std::cout << msg << std::endl;
+            //std::cout << msg << std::endl;
             break;
         }
         // MARK: AUTH
@@ -351,8 +449,9 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
         case ES_EVENT_TYPE_AUTH_TRUNCATE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_UNLINK: // TODO: check when it's called for proper blocking
         {
-            // Also RONLY mode, these events are content-changing operations so we don't have to check the mode.
-            // Just deny the operation...
+            std::cout << msg << std::endl;
+            // These events are content-changing operations so we don't need to check the mode.
+            // Just deny the operation if there is any restriction...
             if (cp->get().bl != BlockLevel::NONE && !cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
                 ret = (es_auth_result_t)ES_AUTH_RESULT_DENY;
             }

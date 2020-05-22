@@ -100,6 +100,8 @@ struct ICloud : public CloudProvider
         };
     };
     ~ICloud() = default;
+
+    static std::vector<std::string> FindPaths(const std::string &homePath);
 };
 
 struct Dropbox : public CloudProvider
@@ -113,6 +115,8 @@ struct Dropbox : public CloudProvider
         };
     };
     ~Dropbox() = default;
+
+    static std::vector<std::string> FindPaths(const std::string &homePath);
 };
 
 class Blocker
@@ -131,9 +135,10 @@ class Blocker
 
     es_client_t *m_clt = nullptr;
     std::mutex m_statsMtx;
+    std::mutex m_configMtx;
     Stats m_stats;
 
-    std::optional<std::reference_wrapper<const CloudProvider>> ResolveCloudProvider(const std::vector<const std::string> &paths);
+    std::optional<std::reference_wrapper<const CloudProvider>> ResolveCloudProvider(const std::vector<const std::string> &eventPaths);
 
     // MARK: Callbacks
     std::any HandleEventImpl(const es_message_t * const msg);
@@ -172,6 +177,7 @@ public:
     static Blocker& GetInstance();
     bool Init();
     void Uninit();
+    bool Configure(const std::unordered_map<CloudProviderId, BlockLevel> &config);
 
     // MARK: Stats
     void IncreaseStats(const BlockerStats metric, const es_event_type_t type, const uint64_t count = 1);
