@@ -37,12 +37,17 @@ bool CloudProvider::BundleIdIsAllowed(const es_string_token_t bundleId) const
 
 
 // MARK: - Blocker
-static const inline std::map<BlockLevel, const std::string> g_blockLvlToStr = {
+static const inline std::unordered_map<BlockLevel, const std::string> g_blockLvlToStr = {
     {BlockLevel::NONE,  "NONE"},
     {BlockLevel::RONLY, "RONLY"},
     {BlockLevel::FULL,  "FULL"},
 };
-
+const std::unordered_map<CloudProviderId, const std::string> g_cpToStr = {
+    {CloudProviderId::NONE,     "NONE"},
+    {CloudProviderId::ICLOUD,   "iCloud"},
+    {CloudProviderId::DROPBOX,  "Dropbox"},
+    {CloudProviderId::ONEDRIVE, "OneDrive"},
+};
 
 Blocker& Blocker::GetInstance()
 {
@@ -78,9 +83,9 @@ bool Blocker::Init()
             if (msgCopy->action_type != ES_ACTION_TYPE_NOTIFY) {
                 if (f_res == std::future_status::timeout) {
                     Blocker::GetInstance().IncreaseStats(BlockerStats::EVENT_DROPPED_DEADLINE, msg->event_type);
-                    std::cerr << "Event dropped because of deadline!\n";
+                    std::cerr << "Event dropped because of deadline!\n";  // TODO: return
                 }
-                else if (f_res == std::future_status::timeout) {
+                else if (f_res == std::future_status::deferred) {
                     std::cerr << "Event deffered (should not happen)!\n";
                 }
             }

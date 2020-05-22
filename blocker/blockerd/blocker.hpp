@@ -13,7 +13,7 @@
 #include <cstdint>
 #include <EndpointSecurity/EndpointSecurity.h>
 #include <functional>
-#include <map>
+#include <unordered_map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -40,6 +40,7 @@ enum class CloudProviderId : uint8_t
     ONEDRIVE,
     //Google Drive File Stream
 };
+extern const std::unordered_map<CloudProviderId, const std::string> g_cpToStr;
 
 struct CloudProvider
 {
@@ -99,10 +100,19 @@ struct ICloud : public CloudProvider
         };
     };
     ~ICloud() = default;
+};
 
-    // delete copy operations
-    ICloud(const ICloud &) = delete;
-    void operator=(const ICloud &) = delete;
+struct Dropbox : public CloudProvider
+{
+    Dropbox(const BlockLevel Bl, const std::vector<std::string> &Paths) {
+        id = CloudProviderId::ICLOUD;
+        bl = Bl;
+        paths = Paths;
+        allowedBundleIds = {
+            //"",
+        };
+    };
+    ~Dropbox() = default;
 };
 
 class Blocker
@@ -116,7 +126,7 @@ class Blocker
             uint64_t droppedDeadline = 0;
         };
 
-        std::map<es_event_type_t, EventStats> eventStats;
+        std::unordered_map<es_event_type_t, EventStats> eventStats;
     };
 
     es_client_t *m_clt = nullptr;
@@ -131,7 +141,7 @@ class Blocker
 
     // MARK: - Public
 public:
-    std::map<CloudProviderId, CloudProvider> m_config;
+    std::unordered_map<CloudProviderId, CloudProvider> m_config;
     const std::vector<es_event_type_t> m_eventsOfInterest = {
         // File System
         ES_EVENT_TYPE_AUTH_CLONE,
