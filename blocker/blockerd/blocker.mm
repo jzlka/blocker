@@ -144,7 +144,7 @@ void Blocker::Uninit()
     }
 }
 
-void Blocker::IncreaseStats(const BlockerStats metric, const es_event_type_t type, const uint64_t count )
+void Blocker::IncreaseStats(const BlockerStats metric, const es_event_type_t type, const uint64_t count)
 {
     std::scoped_lock<std::mutex> lock(m_statsMtx);
     switch (metric)
@@ -203,7 +203,7 @@ void Blocker::HandleEvent(es_client_t * const clt, const es_message_t * const ms
             }
 
             if (res != ES_RESPOND_RESULT_SUCCESS)
-                std::cerr << "es_respond_auth_result: " << g_respondResultToStrMap.at(res) << std::endl;
+                std::cerr << "Error es_respond_auth_result: " << g_respondResultToStrMap.at(res) << std::endl;
         }
     }
     catch (const std::exception &e) {
