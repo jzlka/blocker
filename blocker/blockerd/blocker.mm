@@ -55,52 +55,36 @@ Blocker& Blocker::GetInstance()
     return blocker;
 }
 
-#define BLOCKER_ASYNC_HANDLER 0
 bool Blocker::Init()
 {
     es_handler_block_t handler = ^(es_client_t *clt, const es_message_t *msg) {
-#if BLOCKER_ASYNC_HANDLER
-        es_message_t * const msgCopy = es_copy_message(msg);
-        if (msgCopy == nullptr) {
-            std::cerr << "Could not copy message." << std::endl;
-            IncreaseStats(BlockerStats::EVENT_COPY_ERR, msg->event_type);
-            return;
-        }
+        try {
+            uint64_t msecDeadline = mach_time_to_msecs(msg->deadline);
+            // Set deadline a bit sooner
+            const std::chrono::milliseconds f_msecDeadline { msecDeadline - (msecDeadline >> 3) }; // substract 12.5%
 
-        dispatch_async(dispatch_get_main_queue(), ^(void){
-#else  // BLOCKER_ASYNC_HANDLER
-            es_message_t *msgCopy = (es_message_t*)msg;
-#endif // BLOCKER_ASYNC_HANDLER
-            try {
-                uint64_t msecDeadline = mach_time_to_msecs(msgCopy->deadline);
-                // Set deadline a bit sooner
-                const std::chrono::milliseconds f_msecDeadline { msecDeadline - (msecDeadline >> 3) }; // substract 12.5%
+            std::future f = std::async(std::launch::async, [clt,msg]{ Blocker::GetInstance().HandleEvent(clt, msg); });
 
-                std::future f = std::async(std::launch::async, [clt,msgCopy]{ Blocker::GetInstance().HandleEvent(clt, msgCopy); });
-
-                const auto f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
-                // The deadline is 0 for NOTIFY events
-                if (msgCopy->action_type != ES_ACTION_TYPE_NOTIFY) {
-                    if (f_res == std::future_status::timeout) {
-                        Blocker::GetInstance().IncreaseStats(BlockerStats::EVENT_DROPPED_DEADLINE, msg->event_type);
-                        // TODO: return allow/deny/flags
-                        // https://thispointer.com/c11-how-to-stop-or-terminate-a-thread/
-                        // https://stackoverflow.com/questions/46762384/how-to-prematurely-kill-stdasync-threads-before-they-are-finished-without-us
-                        std::cerr << "Event dropped because of deadline!\n";
-                    }
-                    else if (f_res == std::future_status::deferred) {
-                        std::cerr << "Event deffered (should not happen)!\n";
-                    }
+            const auto f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
+            // The deadline is 0 for NOTIFY events
+            if (msg->action_type != ES_ACTION_TYPE_NOTIFY) {
+                if (f_res == std::future_status::timeout) {
+                    Blocker::GetInstance().IncreaseStats(BlockerStats::EVENT_DROPPED_DEADLINE, msg->event_type);
+                    // TODO: return allow/deny/flags
+                    // https://thispointer.com/c11-how-to-stop-or-terminate-a-thread/
+                    // https://stackoverflow.com/questions/46762384/how-to-prematurely-kill-stdasync-threads-before-they-are-finished-without-us
+                    std::cerr << "Event dropped because of deadline!\n";
                 }
-            } catch (const std::exception &e) {
-                std::cerr << e.what() << std::endl;
+                else if (f_res == std::future_status::deferred) {
+                    std::cerr << "Event deffered (should not happen)!\n";
+                }
             }
-            catch (...) {
-                std::cerr << "Unknown exception!" << std::endl;
-            }
-#if BLOCKER_ASYNC_HANDLER
-        });
-#endif // BLOCKER_ASYNC_HANDLER
+        } catch (const std::exception &e) {
+            std::cerr << e.what() << std::endl;
+        }
+        catch (...) {
+            std::cerr << "Unknown exception!" << std::endl;
+        }
     };
 
     es_new_client_result_t res = es_new_client(&m_clt, handler);
@@ -199,7 +183,7 @@ std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloud
 }
 
 // MARK: Callbacks
-void Blocker::HandleEvent(es_client_t * const clt, es_message_t * const msg)
+void Blocker::HandleEvent(es_client_t * const clt, const es_message_t * const msg)
 {
     try {
         std::any ret = HandleEventImpl(msg);
@@ -221,11 +205,6 @@ void Blocker::HandleEvent(es_client_t * const clt, es_message_t * const msg)
             if (res != ES_RESPOND_RESULT_SUCCESS)
                 std::cerr << "es_respond_auth_result: " << g_respondResultToStrMap.at(res) << std::endl;
         }
-        #if BLOCKER_ASYNC_HANDLER
-        // AppleDoc: Warning: Freeing a message from inside a handler block will cause your app to crash.
-        // But as this block is running asynchronously from the original block, freeing should be OK here.
-        es_free_message(msg);
-        #endif
     }
     catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;

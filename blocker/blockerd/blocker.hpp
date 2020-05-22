@@ -177,7 +177,7 @@ public:
     void IncreaseStats(const BlockerStats metric, const es_event_type_t type, const uint64_t count = 1);
 
     // MARK: Callbacks
-    void HandleEvent(es_client_t * const clt, es_message_t * const msg);
+    void HandleEvent(es_client_t * const clt, const es_message_t * const msg);
 
     // MARK: Logging
     friend std::ostream & operator << (std::ostream &out, const Blocker::Stats &stats);
