@@ -113,6 +113,13 @@ bool Blocker::Init()
 {
     es_handler_block_t handler = ^(es_client_t *clt, const es_message_t *msg) {
         es_message_t *msgCopy = es_copy_message(msg);
+        if (msgCopy == nullptr) {
+            g_logger.log(LogLevel::ERR, "Could not copy message.");
+            IncreaseStats(BlockerStats::EVENT_COPY_ERR, msg->event_type);
+            AuthorizeESEvent(clt, msg, GetDefaultESResponse(msg));
+            return;
+        }
+
         dispatch_async(dispatch_get_main_queue(), ^{
             Blocker::GetInstance().HandleEvent(clt, msgCopy);
             es_free_message(msgCopy);
@@ -248,8 +255,10 @@ std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloud
         for (const auto &eventPath : eventPaths) {
             // Check if the event path is one of cloud provider paths
             for (const auto &cpPath : cp.paths) {
-                if (eventPath.find(cpPath) != std::string::npos)
+                if (eventPath.find(cpPath) != std::string::npos) {
+                    g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Found cloud provider...",g_cpToStr.at(cp.id));
                     return cp;
+                }
             }
         }
     }
@@ -259,19 +268,43 @@ std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloud
 
 std::any Blocker::GetDefaultESResponse(const es_message_t * const msg)
 {
+    if (msg == nullptr) {
+        g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Received null argument");
+        return std::nullopt;
+    }
+
     std::any ret;
     if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
        ret = static_cast<uint32_t>(msg->event.open.fflag);
-   else
+    else
        ret = static_cast<es_auth_result_t>(ES_AUTH_RESULT_ALLOW);
 
     return ret;
+}
+
+void Blocker::AuthorizeESEvent(es_client_t * const clt, const es_message_t * const msg, const std::any &result)
+{
+    g_logger.log(LogLevel::VERBOSE, "Responding to the subsystem.");
+    // Handle subscribed AUTH events
+    es_respond_result_t ret;
+    if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
+        ret = es_respond_flags_result(clt, msg, std::any_cast<uint32_t>(result), false);
+    else
+        ret = es_respond_auth_result(clt, msg, std::any_cast<es_auth_result_t>(result), false);
+
+    if (ret != ES_RESPOND_RESULT_SUCCESS)
+        g_logger.log(LogLevel::ERR, "Error es_respond_auth_result: ", g_respondResultToStrMap.at(ret));
 }
 
 // MARK: Callbacks
 void Blocker::HandleEvent(es_client_t * const clt, const es_message_t * const msg)
 {
     try {
+        if (msg == nullptr) {
+            g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Received null argument");
+            return;
+        }
+
         g_logger.log(LogLevel::VERBOSE, g_eventTypeToStrMap.at(msg->event_type));
 
         uint64_t msecDeadline = mach_time_to_msecs(msg->deadline);
@@ -279,58 +312,52 @@ void Blocker::HandleEvent(es_client_t * const clt, const es_message_t * const ms
         const std::chrono::milliseconds f_msecDeadline { msecDeadline - (msecDeadline >> 3) }; // substract 12.5%
         std::any result = GetDefaultESResponse(msg);
 
-        std::future f = std::async(std::launch::async, &Blocker::HandleEventImpl, this, msg);
-        const auto f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
+        std::future<std::any> f = std::async(std::launch::async, &Blocker::HandleEventImpl, this, msg);
+        g_logger.log(LogLevel::VERBOSE, "Waiting for handler.");
+        const std::future_status f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
 
         // If it's an NOTIFY event, we do not need to do anything. Just return.
         if (msg->action_type == ES_ACTION_TYPE_NOTIFY)
             return;
 
         // We timed out.
-        if (f_res == std::future_status::timeout) {
+        if (f_res != std::future_status::ready) {
+            g_logger.log(LogLevel::ERR, "Event dropped because of deadline (or deferred)! <", static_cast<unsigned int>(f_res), ">");
             IncreaseStats(BlockerStats::EVENT_DROPPED_DEADLINE, msg->event_type);
-            // TODO: return allow/deny/flags
-            // https://thispointer.com/c11-how-to-stop-or-terminate-a-thread/
-            // https://stackoverflow.com/questions/46762384/how-to-prematurely-kill-stdasync-threads-before-they-are-finished-without-us
-            std::cerr << "Event dropped because of deadline!\n";
-        }
-        else if (f_res == std::future_status::deferred) {
-            std::cerr << "Event deffered (should not happen)!\n";
-        }
-        else if (f.get().has_value()) {
-            result = f.get();
-        }
-        else {
-            std::cerr << "HandleEventImpl did not return a value!!\n";
+        } else if (!f.valid()) {
+                g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Future is not in a valid state!");
+        } else {
+            std::any resultTmp = f.get();
+
+            if (!resultTmp.has_value())
+                g_logger.log(LogLevel::ERR, "HandleEventImpl did not return a value!!");
+            else
+                result = resultTmp;
         }
 
-        // Handle subscribed AUTH events
-        es_respond_result_t ret;
-        if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
-            ret = es_respond_flags_result(clt, msg, std::any_cast<uint32_t>(result), false);
-        else
-            ret = es_respond_auth_result(clt, msg, std::any_cast<es_auth_result_t>(result), false);
-
-        if (ret != ES_RESPOND_RESULT_SUCCESS)
-            std::cerr << "Error es_respond_auth_result: " << g_respondResultToStrMap.at(ret) << std::endl;
+        AuthorizeESEvent(clt, msg, result);
 
     } catch (const std::exception &e) {
-        std::cerr << e.what() << std::endl;
+        g_logger.log(LogLevel::ERR, e.what());
     }
     catch (...) {
-        std::cerr << "Unknown exception!" << std::endl;
+        g_logger.log(LogLevel::ERR, "Unknown exception!");
     }
 }
 
 std::any Blocker::HandleEventImpl(const es_message_t * const msg)
 {
-    // std::cout << "OPERATION IMPL: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
+    if (msg == nullptr) {
+        g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Got nullptr!");
+        return std::nullopt;
+    }
     // Dirty temporary hack.
     // Set default non-destructive return. AUTH_OPEN returns flags, other auth events return AUTH_RESULT and notify does not care.
     std::any ret = GetDefaultESResponse(msg);
 
     // At first get some metrics
     // std::scoped_lock<std::mutex> lock(m_statsMtx); // !!!: causes deadlock. Fix thread safety!
+    g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Checking sequence numbers...");
     Stats::EventStats &eventStats = m_stats.eventStats[msg->event_type];
     // if it's the first event of its type don't check seq_num sequence
     if (unlikely(eventStats.firstEvent == true)) {
@@ -344,17 +371,19 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
     // set the new lastSeq
     eventStats.lastSeqNum = msg->seq_num;
 
-    // !!!: This call WILL crash with unsupported event type
+    // !!!: This call WILL crash if called with unsupported event type
     const std::vector<const std::string> eventPaths = paths_from_event(msg);
 
+    g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Resolving cloud provider...");
     const auto cp = ResolveCloudProvider(eventPaths);
     // Not a supported cloud provider.
     if (!cp.has_value())
         return ret;
 
+    g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Cloud provider found...");
+
     switch(msg->event_type) {
         // MARK: NOTIFY
-        // TODO: make a better design to make sure that this switch matches m_eventsOfInterest array
         case ES_EVENT_TYPE_NOTIFY_KEXTLOAD:
         case ES_EVENT_TYPE_NOTIFY_KEXTUNLOAD:
         case ES_EVENT_TYPE_NOTIFY_UNMOUNT:
