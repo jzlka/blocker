@@ -140,6 +140,7 @@ class Blocker
 
     std::optional<std::reference_wrapper<const CloudProvider>> ResolveCloudProvider(const std::vector<const std::string> &eventPaths);
 
+    std::any GetDefaultESResponse(const es_message_t * const msg);
     // MARK: Callbacks
     std::any HandleEventImpl(const es_message_t * const msg);
 

@@ -112,33 +112,11 @@ Blocker& Blocker::GetInstance()
 bool Blocker::Init()
 {
     es_handler_block_t handler = ^(es_client_t *clt, const es_message_t *msg) {
-        try {
-            uint64_t msecDeadline = mach_time_to_msecs(msg->deadline);
-            // Set deadline a bit sooner
-            const std::chrono::milliseconds f_msecDeadline { msecDeadline - (msecDeadline >> 3) }; // substract 12.5%
-
-            std::future f = std::async(std::launch::async, [clt,msg]{ Blocker::GetInstance().HandleEvent(clt, msg); });
-
-            const auto f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
-            // The deadline is 0 for NOTIFY events
-            if (msg->action_type != ES_ACTION_TYPE_NOTIFY) {
-                if (f_res == std::future_status::timeout) {
-                    Blocker::GetInstance().IncreaseStats(BlockerStats::EVENT_DROPPED_DEADLINE, msg->event_type);
-                    // TODO: return allow/deny/flags
-                    // https://thispointer.com/c11-how-to-stop-or-terminate-a-thread/
-                    // https://stackoverflow.com/questions/46762384/how-to-prematurely-kill-stdasync-threads-before-they-are-finished-without-us
-                    std::cerr << "Event dropped because of deadline!\n";
-                }
-                else if (f_res == std::future_status::deferred) {
-                    std::cerr << "Event deffered (should not happen)!\n";
-                }
-            }
-        } catch (const std::exception &e) {
-            std::cerr << e.what() << std::endl;
-        }
-        catch (...) {
-            std::cerr << "Unknown exception!" << std::endl;
-        }
+        es_message_t *msgCopy = es_copy_message(msg);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            Blocker::GetInstance().HandleEvent(clt, msgCopy);
+            es_free_message(msgCopy);
+        });
     };
 
     es_new_client_result_t res = es_new_client(&m_clt, handler);
@@ -263,7 +241,7 @@ std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloud
 {
     // TODO: recognize copy from one CloudProvider to another one
     // TODO: check thread safety of m_config and the returned CloudProvider
-    // TODO: make more effective
+    // TODO: make it more effective
     // For every cloud provider
     for (const auto &[cpId,cp] : m_config) {
         // For every path in the event
@@ -279,32 +257,64 @@ std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloud
     return std::nullopt;
 }
 
+std::any Blocker::GetDefaultESResponse(const es_message_t * const msg)
+{
+    std::any ret;
+    if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
+       ret = static_cast<uint32_t>(msg->event.open.fflag);
+   else
+       ret = static_cast<es_auth_result_t>(ES_AUTH_RESULT_ALLOW);
+
+    return ret;
+}
+
 // MARK: Callbacks
 void Blocker::HandleEvent(es_client_t * const clt, const es_message_t * const msg)
 {
     try {
         g_logger.log(LogLevel::VERBOSE, g_eventTypeToStrMap.at(msg->event_type));
-        std::any ret = HandleEventImpl(msg);
-        // If it's an AUTH event, we need to return something
-        if (msg->action_type == ES_ACTION_TYPE_AUTH) {
-            if (!ret.has_value()) {
-                std::cerr << "HandleEventImpl did not return a value!!\n";
-                return;
-            }
 
-            // Handle subscribed AUTH events
-            es_respond_result_t res;
-            if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN) {
-                res = es_respond_flags_result(clt, msg, std::any_cast<uint32_t>(ret), false);
-            } else {
-                res = es_respond_auth_result(clt, msg, std::any_cast<es_auth_result_t>(ret), false);
-            }
+        uint64_t msecDeadline = mach_time_to_msecs(msg->deadline);
+        // Set deadline a bit sooner
+        const std::chrono::milliseconds f_msecDeadline { msecDeadline - (msecDeadline >> 3) }; // substract 12.5%
+        std::any result = GetDefaultESResponse(msg);
 
-            if (res != ES_RESPOND_RESULT_SUCCESS)
-                std::cerr << "Error es_respond_auth_result: " << g_respondResultToStrMap.at(res) << std::endl;
+        std::future f = std::async(std::launch::async, &Blocker::HandleEventImpl, this, msg);
+        const auto f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
+
+        // If it's an NOTIFY event, we do not need to do anything. Just return.
+        if (msg->action_type == ES_ACTION_TYPE_NOTIFY)
+            return;
+
+        // We timed out.
+        if (f_res == std::future_status::timeout) {
+            IncreaseStats(BlockerStats::EVENT_DROPPED_DEADLINE, msg->event_type);
+            // TODO: return allow/deny/flags
+            // https://thispointer.com/c11-how-to-stop-or-terminate-a-thread/
+            // https://stackoverflow.com/questions/46762384/how-to-prematurely-kill-stdasync-threads-before-they-are-finished-without-us
+            std::cerr << "Event dropped because of deadline!\n";
         }
-    }
-    catch (const std::exception &e) {
+        else if (f_res == std::future_status::deferred) {
+            std::cerr << "Event deffered (should not happen)!\n";
+        }
+        else if (f.get().has_value()) {
+            result = f.get();
+        }
+        else {
+            std::cerr << "HandleEventImpl did not return a value!!\n";
+        }
+
+        // Handle subscribed AUTH events
+        es_respond_result_t ret;
+        if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
+            ret = es_respond_flags_result(clt, msg, std::any_cast<uint32_t>(result), false);
+        else
+            ret = es_respond_auth_result(clt, msg, std::any_cast<es_auth_result_t>(result), false);
+
+        if (ret != ES_RESPOND_RESULT_SUCCESS)
+            std::cerr << "Error es_respond_auth_result: " << g_respondResultToStrMap.at(ret) << std::endl;
+
+    } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
     }
     catch (...) {
@@ -317,12 +327,7 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
     // std::cout << "OPERATION IMPL: " << g_eventTypeToStrMap.at(msg->event_type) << std::endl;
     // Dirty temporary hack.
     // Set default non-destructive return. AUTH_OPEN returns flags, other auth events return AUTH_RESULT and notify does not care.
-    std::any ret;
-    if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
-        ret = static_cast<uint32_t>(msg->event.open.fflag);
-    else
-        ret = static_cast<es_auth_result_t>(ES_AUTH_RESULT_ALLOW);
-
+    std::any ret = GetDefaultESResponse(msg);
 
     // At first get some metrics
     // std::scoped_lock<std::mutex> lock(m_statsMtx); // !!!: causes deadlock. Fix thread safety!
