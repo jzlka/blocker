@@ -18,19 +18,8 @@
 
 #include "blocker.hpp"
 #include "../../Common/logger.hpp"
+#include "../../Common/SignalHandler.hpp"
 
-
-void signalHandler(int signum)
-{
-    Blocker &blocker = Blocker::GetInstance();
-
-    blocker.PrintStats();
-    blocker.Uninit();
-
-    // Not safe, but whatever
-    std::cerr << "Interrupt signal (" << signum << ") received, exiting." << std::endl;
-    exit(signum);
-}
 
 void printHelp()
 {
@@ -104,11 +93,9 @@ bool parseArguments(const int argc, char * const argv[], bool &help, std::unorde
 
 
 
-int main(const int argc, char * const argv[]) {
-    // No runloop, no problem
-    signal(SIGINT, signalHandler);
-    signal(SIGTERM, signalHandler);
-    signal(SIGABRT, signalHandler);
+int main(const int argc, char * const argv[])
+{
+    InstallHandleSignalFromRunLoop();
 
     const char* demoName = "blockerd";
     std::cout << "(" << demoName << ") Hello, World!\n";
@@ -137,7 +124,10 @@ int main(const int argc, char * const argv[]) {
         if (!blocker.Configure(config))
             return EXIT_FAILURE;
 
-        dispatch_main();
+        CFRunLoopRun();
+
+        blocker.PrintStats();
+        blocker.Uninit();
     }
 
     return EXIT_SUCCESS;

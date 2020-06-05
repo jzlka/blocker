@@ -97,14 +97,22 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
         case ES_EVENT_TYPE_AUTH_MOUNT:
             g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
             break;
+        case ES_EVENT_TYPE_AUTH_UNLINK: // TODO: check when it's called for proper blocking
+        {
+            // Allow dropbox to unlink the file. It first moves it either to old_files or into the .Trash, then unlinks it.
+            const std::string dropboxBundleId = "com.getdropbox.dropbox";
+            const std::string bundleId = to_string(msg->process->signing_id);
+            if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId)
+                break;
+        }
         case ES_EVENT_TYPE_AUTH_CLONE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_LINK: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_READLINK:
         case ES_EVENT_TYPE_AUTH_TRUNCATE: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_UNLINK: // TODO: check when it's called for proper blocking
         {
+
             // These events are content-changing operations so we don't need to check the mode.
             // Just deny the operation if there is any restriction...
             if (bl != BlockLevel::NONE)
@@ -165,11 +173,11 @@ es_auth_result_t CloudProvider::AuthWriteGeneral(const es_message_t * const msg)
         return ret;
 
     const std::string dropboxBundleId = "com.getdropbox.dropbox";
-    std::string bundleId = to_string(msg->process->signing_id);
+    const std::string bundleId = to_string(msg->process->signing_id);
     // If the rename is from/to one of Dropbox folders, allow it.
     // !!!: we expect that the Dropbox cache folder is not accesible using Dropbox file explorer (which is true so far) so an user cannot do any mess there using the Dropbox app.
     if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(paths_from_event(msg))) {
-        g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Ignoring Dropbox process.\n", msg);
+        g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Ignoring Dropbox process.");
         return ret;
     }
 
@@ -191,7 +199,7 @@ uint32_t CloudProvider::AuthOpen(const es_message_t * const msg) const
         return ret;
 
     const std::string dropboxBundleId = "com.getdropbox.dropbox";
-    std::string bundleId = to_string(msg->process->signing_id);
+    const std::string bundleId = to_string(msg->process->signing_id);
     // If the rename is from/to one of Dropbox folders, allow it.
     // !!!: we expect that the Dropbox cache folder is not accesible using Dropbox file explorer (which is true so far) so an user cannot do any mess there using the Dropbox app.
     if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(paths_from_event(msg)))

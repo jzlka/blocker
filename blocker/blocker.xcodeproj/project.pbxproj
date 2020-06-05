@@ -17,6 +17,7 @@
 		09C7A5D9248A439100CBDCBE /* dropbox.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5D8248A439100CBDCBE /* dropbox.mm */; };
 		09C7A5DD248A43D700CBDCBE /* icloud.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5DC248A43D700CBDCBE /* icloud.mm */; };
 		09C7A5E0248A45A100CBDCBE /* base.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5DF248A45A100CBDCBE /* base.mm */; };
+		09C7A5E1248AA29000CBDCBE /* SignalHandler.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0990119E2474632D00DDFE69 /* SignalHandler.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -45,7 +46,7 @@
 		0990119B2474632D00DDFE69 /* Tools-ES.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = "Tools-ES.hpp"; sourceTree = "<group>"; };
 		0990119C2474632D00DDFE69 /* Tools.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = Tools.mm; sourceTree = "<group>"; };
 		0990119D2474632D00DDFE69 /* Tools.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Tools.hpp; sourceTree = "<group>"; };
-		0990119E2474632D00DDFE69 /* SignalHandler.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SignalHandler.cpp; sourceTree = "<group>"; };
+		0990119E2474632D00DDFE69 /* SignalHandler.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SignalHandler.mm; sourceTree = "<group>"; };
 		099011A12476FE9000DDFE69 /* logger.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = logger.hpp; sourceTree = "<group>"; };
 		09C7A5D7248A439100CBDCBE /* dropbox.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = dropbox.hpp; sourceTree = "<group>"; };
 		09C7A5D8248A439100CBDCBE /* dropbox.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = dropbox.mm; sourceTree = "<group>"; };
@@ -113,7 +114,7 @@
 			isa = PBXGroup;
 			children = (
 				099011992474632D00DDFE69 /* Tools */,
-				0990119E2474632D00DDFE69 /* SignalHandler.cpp */,
+				0990119E2474632D00DDFE69 /* SignalHandler.mm */,
 				099011982474632D00DDFE69 /* SignalHandler.hpp */,
 				099011A12476FE9000DDFE69 /* logger.hpp */,
 			);
@@ -202,6 +203,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				09C7A5E1248AA29000CBDCBE /* SignalHandler.mm in Sources */,
 				0990119F2474640900DDFE69 /* Tools-ES.mm in Sources */,
 				099011A02474640900DDFE69 /* Tools.mm in Sources */,
 				09C7A5E0248A45A100CBDCBE /* base.mm in Sources */,
