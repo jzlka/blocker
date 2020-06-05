@@ -38,7 +38,7 @@ static Logger &g_logger = Logger::getInstance();
 
 
 // MARK: - Blocker
-static const inline std::unordered_map<BlockLevel, const std::string> g_blockLvlToStr = {
+const std::unordered_map<BlockLevel, const std::string> g_blockLvlToStr = {
     {BlockLevel::NONE,  "NONE"},
     {BlockLevel::RONLY, "RONLY"},
     {BlockLevel::FULL,  "FULL"},
@@ -57,7 +57,7 @@ bool Blocker::Init()
         if (msgCopy == nullptr) {
             g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Could not copy message.");
             IncreaseStats(BlockerStats::EVENT_COPY_ERR, msg->event_type);
-            AuthorizeESEvent(clt, msg, GetDefaultESResponse(msg));
+            AuthorizeESEvent(clt, msg, getDefaultESResponse(msg));
             return;
         }
 
@@ -206,22 +206,6 @@ std::optional<std::reference_wrapper<const CloudProvider>> Blocker::ResolveCloud
     return std::nullopt;
 }
 
-std::any Blocker::GetDefaultESResponse(const es_message_t * const msg)
-{
-    if (msg == nullptr) {
-        g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Received null argument");
-        return std::nullopt;
-    }
-
-    std::any ret;
-    if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
-       ret = static_cast<uint32_t>(msg->event.open.fflag);
-    else
-       ret = static_cast<es_auth_result_t>(ES_AUTH_RESULT_ALLOW);
-
-    return ret;
-}
-
 void Blocker::AuthorizeESEvent(es_client_t * const clt, const es_message_t * const msg, const std::any &result)
 {
     // Handle subscribed AUTH events
@@ -247,7 +231,7 @@ void Blocker::HandleEvent(es_client_t * const clt, const es_message_t * const ms
         uint64_t msecDeadline = mach_time_to_msecs(msg->deadline);
         // Set deadline a bit sooner
         const std::chrono::milliseconds f_msecDeadline { msecDeadline - (msecDeadline >> 3) }; // substract 12.5%
-        std::any result = GetDefaultESResponse(msg);
+        std::any result = getDefaultESResponse(msg);
 
         std::future<std::any> f = std::async(std::launch::async, &Blocker::HandleEventImpl, this, msg);
         const std::future_status f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
@@ -290,7 +274,7 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
 
     // Dirty temporary hack.
     // Set default non-destructive return. AUTH_OPEN returns flags, other auth events return AUTH_RESULT and notify does not care.
-    std::any ret = GetDefaultESResponse(msg);
+    std::any ret = getDefaultESResponse(msg);
 
     // At first get some metrics
     // std::scoped_lock<std::mutex> lock(m_statsMtx); // !!!: causes deadlock. Fix thread safety!
@@ -311,97 +295,11 @@ std::any Blocker::HandleEventImpl(const es_message_t * const msg)
     const std::vector<const std::string> eventPaths = paths_from_event(msg);
 
     const auto cp = ResolveCloudProvider(eventPaths);
-    // Not a supported cloud provider.
+    // Not a supported cloud provider, ignore the event.
     if (!cp.has_value())
         return ret;
 
-    g_logger.log(LogLevel::VERBOSE, g_eventTypeToStrMap.at(msg->event_type));
-
-    const auto composeDebugMessage = [&]() {
-        std::string msgToPrint;
-        if (cp->get().bl != BlockLevel::NONE && msg->action_type == ES_ACTION_TYPE_NOTIFY)
-            msgToPrint += "!!! ";
-
-        msgToPrint += "(" + g_blockLvlToStr.at(cp->get().bl) + ") ";
-        msgToPrint += g_eventTypeToStrMap.at(msg->event_type) + " - ";
-        if (ret.type() == typeid(es_auth_result_t)) {
-            msgToPrint += (std::any_cast<es_auth_result_t>(ret) == ES_AUTH_RESULT_DENY ? "BLOCKING" : "ALLOWING");
-        } else if (ret.type() == typeid(uint32_t)) {
-            char *allowedFlags = esfflagstostr(std::any_cast<uint32_t>(ret));
-            char *blockedFlags = esfflagstostr(std::any_cast<uint32_t>(ret) ^ msg->event.open.fflag);
-
-            msgToPrint += "ALLOWING (";
-            msgToPrint += (allowedFlags == nullptr ? "null" : allowedFlags);
-            msgToPrint += "), BLOCKING (";
-            msgToPrint += (blockedFlags == nullptr ? "null" : blockedFlags);
-            msgToPrint += ")";
-
-            free(allowedFlags);     allowedFlags = nullptr;
-            free(blockedFlags);     blockedFlags = nullptr;
-        }
-
-        msgToPrint += " operation at";
-        for (const auto &path : eventPaths)
-            msgToPrint += " '" + path + "'";
-
-        msgToPrint += " by " + to_string(msg->process->signing_id);
-        return msgToPrint;
-    };
-
-    // TODO: if bundle id is allowed, skip the switch
-    switch(msg->event_type) {
-        // MARK: NOTIFY
-        case ES_EVENT_TYPE_NOTIFY_KEXTLOAD:
-        case ES_EVENT_TYPE_NOTIFY_KEXTUNLOAD:
-        case ES_EVENT_TYPE_NOTIFY_UNMOUNT:
-        case ES_EVENT_TYPE_NOTIFY_EXCHANGEDATA:
-        case ES_EVENT_TYPE_NOTIFY_WRITE:
-            g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
-        case ES_EVENT_TYPE_NOTIFY_ACCESS:
-        case ES_EVENT_TYPE_NOTIFY_CLOSE:
-            break;
-        // MARK: AUTH
-        case ES_EVENT_TYPE_AUTH_OPEN:
-            ret = cp->get().AuthOpen(msg);
-            break;
-        case ES_EVENT_TYPE_AUTH_MOUNT:
-            g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
-            break;
-        case ES_EVENT_TYPE_AUTH_READDIR:
-            ret = cp->get().AuthReaddir(msg);
-            break;
-        case ES_EVENT_TYPE_AUTH_RENAME:
-            ret = cp->get().AuthRename(msg);
-            break;
-        case ES_EVENT_TYPE_AUTH_CREATE:
-            ret = cp->get().AuthCreate(msg);
-            break;
-        case ES_EVENT_TYPE_AUTH_CLONE: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_LINK: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_READLINK:
-        case ES_EVENT_TYPE_AUTH_TRUNCATE: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_UNLINK: // TODO: check when it's called for proper blocking
-        {
-            // These events are content-changing operations so we don't need to check the mode.
-            // Just deny the operation if there is any restriction...
-            if (cp->get().bl != BlockLevel::NONE && !cp->get().BundleIdIsAllowed(msg->process->signing_id)) {
-                ret = (es_auth_result_t)ES_AUTH_RESULT_DENY;
-            }
-
-            g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
-            break;
-        }
-        default: {
-            g_logger.log(LogLevel::WARNING, DEBUG_ARGS, "DEFAULT (should not happen!): ", g_eventTypeToStrMap.at(msg->event_type));
-            g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
-            return ret;
-        }
-    }
-
-    g_logger.log(LogLevel::INFO, DEBUG_ARGS, composeDebugMessage());
-    return ret;
+    return cp->get().HandleEvent(msg);
 }
 
 void Blocker::PrintStats()

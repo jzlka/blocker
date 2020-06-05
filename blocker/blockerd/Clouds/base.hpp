@@ -9,6 +9,7 @@
 #ifndef base_hpp
 #define base_hpp
 
+#include <any>
 #include <EndpointSecurity/EndpointSecurity.h>
 #include <string>
 #include <unordered_map>
@@ -79,14 +80,15 @@ struct CloudProvider
 
     bool BundleIdIsAllowed(const es_string_token_t bundleId) const;
 
+    std::any HandleEvent(const es_message_t * const msg) const;
+
+private:
+    bool ContainsDropboxCacheFolder(const std::vector<const std::string> &eventPaths) const;
     // Autorization callbacks
     es_auth_result_t AuthReaddir(const es_message_t * const msg) const;
     es_auth_result_t AuthRename(const es_message_t * const msg) const;
     es_auth_result_t AuthCreate(const es_message_t * const msg) const;
     uint32_t         AuthOpen(const es_message_t * const msg) const;
-
-private:
-    bool ContainsDropboxCacheFolder(const std::vector<const std::string> &eventPaths) const;
 };
 
 
