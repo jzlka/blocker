@@ -85,9 +85,8 @@ struct CloudProvider
 private:
     bool ContainsDropboxCacheFolder(const std::vector<const std::string> &eventPaths) const;
     // Autorization callbacks
-    es_auth_result_t AuthReaddir(const es_message_t * const msg) const;
-    es_auth_result_t AuthRename(const es_message_t * const msg) const;
-    es_auth_result_t AuthCreate(const es_message_t * const msg) const;
+    es_auth_result_t AuthReadGeneral(const es_message_t * const msg) const;
+    es_auth_result_t AuthWriteGeneral(const es_message_t * const msg) const;
     uint32_t         AuthOpen(const es_message_t * const msg) const;
 };
 

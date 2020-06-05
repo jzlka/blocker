@@ -7,6 +7,7 @@
 //
 
 #include <any>
+#include <bsm/libbsm.h>
 
 #include "../../../Common/Tools/Tools-ES.hpp"
 #include "../../../Common/Tools/Tools.hpp"
@@ -36,21 +37,23 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
 
     const auto composeDebugMessage = [&]() {
         std::string msgToPrint = "(" + g_blockLvlToStr.at(bl) + ") ";
-        msgToPrint += g_eventTypeToStrMap.at(msg->event_type) + " - ";
-        if (ret.type() == typeid(es_auth_result_t)) {
-            msgToPrint += (std::any_cast<es_auth_result_t>(ret) == ES_AUTH_RESULT_DENY ? (RED "BLOCKING" CLR) : (GRN "ALLOWING" CLR));
-        } else if (ret.type() == typeid(uint32_t)) {
-            char *allowedFlags = esfflagstostr(std::any_cast<uint32_t>(ret));
-            char *blockedFlags = esfflagstostr(std::any_cast<uint32_t>(ret) ^ msg->event.open.fflag);
+        msgToPrint += g_eventTypeToStrMap.at(msg->event_type) + " -";
+        if (msg->action_type == ES_ACTION_TYPE_AUTH) {
+            if (ret.type() == typeid(es_auth_result_t)) {
+                msgToPrint += (std::any_cast<es_auth_result_t>(ret) == ES_AUTH_RESULT_DENY ? (RED " BLOCKING" CLR) : (GRN " ALLOWING" CLR));
+            } else if (ret.type() == typeid(uint32_t)) {
+                char *allowedFlags = esfflagstostr(std::any_cast<uint32_t>(ret));
+                char *blockedFlags = esfflagstostr(std::any_cast<uint32_t>(ret) ^ msg->event.open.fflag);
 
-            msgToPrint += ("ALLOWING (" GRN);
-            msgToPrint += (allowedFlags == nullptr ? "null" : allowedFlags);
-            msgToPrint += (CLR "), BLOCKING (" RED);
-            msgToPrint += (blockedFlags == nullptr ? "null" : blockedFlags);
-            msgToPrint += (CLR ")");
+                msgToPrint += (" ALLOWING (" GRN);
+                msgToPrint += (allowedFlags == nullptr ? "null" : allowedFlags);
+                msgToPrint += (CLR "), BLOCKING (" RED);
+                msgToPrint += (blockedFlags == nullptr ? "null" : blockedFlags);
+                msgToPrint += (CLR ")");
 
-            free(allowedFlags);     allowedFlags = nullptr;
-            free(blockedFlags);     blockedFlags = nullptr;
+                free(allowedFlags);     allowedFlags = nullptr;
+                free(blockedFlags);     blockedFlags = nullptr;
+            }
         }
 
         msgToPrint += " operation at";
@@ -58,6 +61,7 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
             msgToPrint += " '" + path + "'";
 
         msgToPrint += " by " + to_string(msg->process->signing_id);
+        msgToPrint += "(" + std::to_string(audit_token_to_pid(msg->process->audit_token)) + ")";
         return msgToPrint;
     };
 
@@ -78,21 +82,20 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
         case ES_EVENT_TYPE_NOTIFY_ACCESS:
         case ES_EVENT_TYPE_NOTIFY_CLOSE:
             break;
-            // MARK: AUTH
+        // MARK: AUTH
+        case ES_EVENT_TYPE_AUTH_CHDIR:
+        case ES_EVENT_TYPE_AUTH_READDIR:
+            ret = AuthReadGeneral(msg);
+            break;
+        case ES_EVENT_TYPE_AUTH_RENAME:
+        case ES_EVENT_TYPE_AUTH_CREATE:
+            ret = AuthWriteGeneral(msg);
+            break;
         case ES_EVENT_TYPE_AUTH_OPEN:
             ret = AuthOpen(msg);
             break;
         case ES_EVENT_TYPE_AUTH_MOUNT:
             g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
-            break;
-        case ES_EVENT_TYPE_AUTH_READDIR:
-            ret = AuthReaddir(msg);
-            break;
-        case ES_EVENT_TYPE_AUTH_RENAME:
-            ret = AuthRename(msg);
-            break;
-        case ES_EVENT_TYPE_AUTH_CREATE:
-            ret = AuthCreate(msg);
             break;
         case ES_EVENT_TYPE_AUTH_CLONE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE: // TODO: check when it's called for proper blocking
@@ -135,29 +138,27 @@ bool CloudProvider::ContainsDropboxCacheFolder(const std::vector<const std::stri
 }
 
 // MARK: Callbacks
-es_auth_result_t CloudProvider::AuthReaddir(const es_message_t * const msg) const
+/// Allows reading to everybody if in RONLY mode,
+/// otherwise blocks everything except whitelisted apps
+es_auth_result_t CloudProvider::AuthReadGeneral(const es_message_t * const msg) const
 {
-    if (msg->event_type != ES_EVENT_TYPE_AUTH_READDIR)
-        throw "Wrong callback called! (readdir)";
-
     es_auth_result_t ret = ES_AUTH_RESULT_ALLOW;
 
-    // DENY only in FULL blocking mode
+    // ALLOW the operation if not in FULL blocking mode
     if (bl != BlockLevel::FULL)
         return ret;
 
-    // If the application is not whitelisted DENY it
+    // Otherwise block everything except whitelisted apps
     if (!BundleIdIsAllowed(msg->process->signing_id))
         ret = ES_AUTH_RESULT_DENY;
 
     return ret;
 }
 
-es_auth_result_t CloudProvider::AuthRename(const es_message_t * const msg) const
+/// Blocks all operations except whitelisted apps, and
+/// allows  content modifying operations  by dropbox in dropbox cache folders.
+es_auth_result_t CloudProvider::AuthWriteGeneral(const es_message_t * const msg) const
 {
-    if (msg->event_type != ES_EVENT_TYPE_AUTH_RENAME)
-        throw "Wrong callback called! (rename)";
-
     es_auth_result_t ret = ES_AUTH_RESULT_ALLOW;
 
     if (BundleIdIsAllowed(msg->process->signing_id))
@@ -178,31 +179,6 @@ es_auth_result_t CloudProvider::AuthRename(const es_message_t * const msg) const
 
     // The app is not whitelisted and there is no restriction.
     return ret;
-}
-
-es_auth_result_t CloudProvider::AuthCreate(const es_message_t * const msg) const
-{
-    if (msg->event_type != ES_EVENT_TYPE_AUTH_CREATE)
-        throw "Wrong callback called! (create)";
-
-    if (BundleIdIsAllowed(msg->process->signing_id))
-        return ES_AUTH_RESULT_ALLOW;
-
-    const std::string dropboxBundleId = "com.getdropbox.dropbox";
-    std::string bundleId = to_string(msg->process->signing_id);
-    // If the rename is from/to one of Dropbox folders, allow it.
-    // !!!: we expect that the Dropbox cache folder is not accesible using Dropbox file explorer (which is true so far) so an user cannot do any mess there using the Dropbox app.
-    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(paths_from_event(msg))) {
-        g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Ignoring Dropbox process.\n", msg);
-        return ES_AUTH_RESULT_ALLOW;
-    }
-
-    // If there is any restriction block the operation.
-    if (bl != BlockLevel::NONE)
-        return ES_AUTH_RESULT_DENY;
-
-    // The app is not whitelisted and there is no restriction.
-    return ES_AUTH_RESULT_ALLOW;
 }
 
 uint32_t CloudProvider::AuthOpen(const es_message_t * const msg) const
@@ -218,10 +194,8 @@ uint32_t CloudProvider::AuthOpen(const es_message_t * const msg) const
     std::string bundleId = to_string(msg->process->signing_id);
     // If the rename is from/to one of Dropbox folders, allow it.
     // !!!: we expect that the Dropbox cache folder is not accesible using Dropbox file explorer (which is true so far) so an user cannot do any mess there using the Dropbox app.
-    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(paths_from_event(msg))) {
-        g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Ignoring Dropbox process.\n", msg);
+    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(paths_from_event(msg)))
         return ret;
-    }
 
     // If any restriction is set
     if (bl != BlockLevel::NONE) {

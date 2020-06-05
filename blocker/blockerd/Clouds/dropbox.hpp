@@ -14,7 +14,7 @@
 struct Dropbox : public CloudProvider
 {
     Dropbox(const BlockLevel Bl, const std::vector<std::string> &Paths) {
-        id = CloudProviderId::ICLOUD;
+        id = CloudProviderId::DROPBOX;
         bl = Bl;
         paths = Paths;
         allowedBundleIds = {
