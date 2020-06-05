@@ -3,7 +3,7 @@
 # @author     Jozef Zuzelka <jozef.zuzelka@gmail.com>
 # @date
 #  - Created: 18.05.2020 10:38
-#  - Edited:  05.06.2020 18:39
+#  - Edited:  05.06.2020 19:45
 # @version    1.0.0
 # @par        make: GNU Make 3.81
 # @bug
@@ -14,7 +14,7 @@
 CXX=clang++
 CXXFLAGS=-std=c++17 -pedantic -Wall -Wextra -g
 LDFLAGS=
-FRAMEWORKS=-framework Foundation -framework SystemConfiguration /usr/lib/libEndpointSecurity.dylib /usr/lib/libbsm.dylib
+FRAMEWORKS=-framework DiskArbitration -framework Foundation -framework SystemConfiguration /usr/lib/libEndpointSecurity.dylib /usr/lib/libbsm.dylib
 
 
 ########################     Variables     ##########################
@@ -44,8 +44,8 @@ $(OBJDIR)/%.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 all: directories $(BIN)
-	#$(info $$SRC is [${SRC}])
-	#$(info $$OBJ is [${OBJ}])
+#$(info $$SRC is [${SRC}])
+#$(info $$OBJ is [${OBJ}])
 
 $(BIN): $(OBJ)
 	$(CXX) $(LDFLAGS) $(FRAMEWORKS) -o $(BINDIR)/$@ $^

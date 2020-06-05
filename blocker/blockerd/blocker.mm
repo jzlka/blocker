@@ -63,11 +63,6 @@ bool Blocker::Configure(const std::unordered_map<CloudProviderId, BlockLevel> &c
         return false;
     }
 
-    if (!diskBlocker.Configure()) {
-        g_logger.log(LogLevel::ERR, DEBUG_ARGS, "DiskBlocker config failed.");
-        return false;
-    }
-
     return true;
 }
 

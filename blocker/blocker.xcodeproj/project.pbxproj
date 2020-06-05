@@ -20,6 +20,7 @@
 		09C7A5E1248AA29000CBDCBE /* SignalHandler.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0990119E2474632D00DDFE69 /* SignalHandler.mm */; };
 		09C7A5E4248AA42300CBDCBE /* diskblocker.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5E3248AA42300CBDCBE /* diskblocker.mm */; };
 		09C7A5E7248AA43800CBDCBE /* cloudblocker.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5E6248AA43800CBDCBE /* cloudblocker.mm */; };
+		09C7A5E9248AB80500CBDCBE /* DiskArbitration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 09C7A5E8248AB80500CBDCBE /* DiskArbitration.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -60,6 +61,7 @@
 		09C7A5E3248AA42300CBDCBE /* diskblocker.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = diskblocker.mm; sourceTree = "<group>"; };
 		09C7A5E5248AA43800CBDCBE /* cloudblocker.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = cloudblocker.hpp; sourceTree = "<group>"; };
 		09C7A5E6248AA43800CBDCBE /* cloudblocker.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = cloudblocker.mm; sourceTree = "<group>"; };
+		09C7A5E8248AB80500CBDCBE /* DiskArbitration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DiskArbitration.framework; path = System/Library/Frameworks/DiskArbitration.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,6 +72,7 @@
 				099011862474496500DDFE69 /* libbsm.tbd in Frameworks */,
 				099011842474495800DDFE69 /* libEndpointSecurity.tbd in Frameworks */,
 				09901192247449B500DDFE69 /* Foundation.framework in Frameworks */,
+				09C7A5E9248AB80500CBDCBE /* DiskArbitration.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -113,6 +116,7 @@
 		099011822474495000DDFE69 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				09C7A5E8248AB80500CBDCBE /* DiskArbitration.framework */,
 				09901191247449B500DDFE69 /* Foundation.framework */,
 				099011852474495F00DDFE69 /* libbsm.tbd */,
 				099011832474495000DDFE69 /* libEndpointSecurity.tbd */,
