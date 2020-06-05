@@ -39,7 +39,7 @@ bool Blocker::Init()
 {
     if (!cloudBlocker.Init()) {
         g_logger.log(LogLevel::ERR, DEBUG_ARGS, "CloudBlocker init failed.");
-        return false;
+        //return false;
     }
 
     if (!diskBlocker.Init()) {
