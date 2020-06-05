@@ -18,105 +18,13 @@
 #include <string>
 #include <vector>
 
+#include "Clouds/base.hpp"
+
 enum class BlockerStats : uint8_t
 {
     EVENT_COPY_ERR,
     EVENT_DROPPED_KERNEL,
     EVENT_DROPPED_DEADLINE,
-};
-
-enum class BlockLevel : uint8_t
-{
-    NONE,
-    RONLY,
-    FULL,
-};
-
-enum class CloudProviderId : uint8_t
-{
-    NONE,
-    ICLOUD,
-    DROPBOX,
-    ONEDRIVE,
-    //Google Drive File Stream
-};
-extern const std::unordered_map<CloudProviderId, const std::string> g_cpToStr;
-
-struct CloudProvider
-{
-    CloudProviderId id = CloudProviderId::NONE;
-    BlockLevel bl = BlockLevel::NONE;
-    std::vector<std::string> paths;
-    std::vector<std::string> allowedBundleIds;
-
-    CloudProvider() = default;
-    virtual ~CloudProvider() = default;
-    // delete copy operations
-    CloudProvider(const CloudProvider &) = delete;
-    void operator=(const CloudProvider &) = delete;
-    // move operations
-    CloudProvider(CloudProvider&& other)
-    {
-        id = other.id;
-        bl = other.bl;
-        paths = std::move(other.paths);
-        allowedBundleIds = std::move(other.allowedBundleIds);
-
-        other.id = CloudProviderId::NONE;
-        other.bl = BlockLevel::NONE;
-        other.paths.clear();
-        other.allowedBundleIds.clear();
-    }
-
-    CloudProvider& operator=(CloudProvider&& other)
-    {
-        if (this == &other)
-            return *this;
-
-        id = other.id;
-        bl = other.bl;
-        paths = std::move(other.paths);
-        allowedBundleIds = std::move(other.allowedBundleIds);
-
-        other.id = CloudProviderId::NONE;
-        other.bl = BlockLevel::NONE;
-        other.paths.clear();
-        other.allowedBundleIds.clear();
-
-        return *this;
-    }
-
-    bool BundleIdIsAllowed(const es_string_token_t bundleId) const;
-};
-
-struct ICloud : public CloudProvider
-{
-    ICloud(const BlockLevel Bl, const std::vector<std::string> &Paths) {
-        id = CloudProviderId::ICLOUD;
-        bl = Bl;
-        paths = Paths;
-        allowedBundleIds = {
-            "com.apple.bird",
-        };
-    };
-    ~ICloud() = default;
-
-    static std::vector<std::string> FindPaths(const std::string &homePath);
-};
-
-struct Dropbox : public CloudProvider
-{
-    Dropbox(const BlockLevel Bl, const std::vector<std::string> &Paths) {
-        id = CloudProviderId::ICLOUD;
-        bl = Bl;
-        paths = Paths;
-        allowedBundleIds = {
-            //"",
-        };
-    };
-    ~Dropbox() = default;
-
-    static std::vector<std::string> FindPaths(const std::string &homePath);
 };
 
 class Blocker

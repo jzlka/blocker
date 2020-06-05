@@ -14,6 +14,9 @@
 		09901196247461CF00DDFE69 /* blocker.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09901195247461CF00DDFE69 /* blocker.mm */; };
 		0990119F2474640900DDFE69 /* Tools-ES.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0990119A2474632D00DDFE69 /* Tools-ES.mm */; };
 		099011A02474640900DDFE69 /* Tools.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0990119C2474632D00DDFE69 /* Tools.mm */; };
+		09C7A5D9248A439100CBDCBE /* dropbox.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5D8248A439100CBDCBE /* dropbox.mm */; };
+		09C7A5DD248A43D700CBDCBE /* icloud.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5DC248A43D700CBDCBE /* icloud.mm */; };
+		09C7A5E0248A45A100CBDCBE /* base.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5DF248A45A100CBDCBE /* base.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -44,6 +47,12 @@
 		0990119D2474632D00DDFE69 /* Tools.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Tools.hpp; sourceTree = "<group>"; };
 		0990119E2474632D00DDFE69 /* SignalHandler.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SignalHandler.cpp; sourceTree = "<group>"; };
 		099011A12476FE9000DDFE69 /* logger.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = logger.hpp; sourceTree = "<group>"; };
+		09C7A5D7248A439100CBDCBE /* dropbox.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = dropbox.hpp; sourceTree = "<group>"; };
+		09C7A5D8248A439100CBDCBE /* dropbox.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = dropbox.mm; sourceTree = "<group>"; };
+		09C7A5DB248A43D700CBDCBE /* icloud.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = icloud.hpp; sourceTree = "<group>"; };
+		09C7A5DC248A43D700CBDCBE /* icloud.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = icloud.mm; sourceTree = "<group>"; };
+		09C7A5DE248A45A100CBDCBE /* base.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = base.hpp; sourceTree = "<group>"; };
+		09C7A5DF248A45A100CBDCBE /* base.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = base.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,6 +91,7 @@
 		0990117A2474493800DDFE69 /* blockerd */ = {
 			isa = PBXGroup;
 			children = (
+				09C7A5DA248A439B00CBDCBE /* Clouds */,
 				0990117B2474493800DDFE69 /* main.mm */,
 				09901195247461CF00DDFE69 /* blocker.mm */,
 				09901194247461CF00DDFE69 /* blocker.hpp */,
@@ -120,6 +130,19 @@
 				0990119D2474632D00DDFE69 /* Tools.hpp */,
 			);
 			path = Tools;
+			sourceTree = "<group>";
+		};
+		09C7A5DA248A439B00CBDCBE /* Clouds */ = {
+			isa = PBXGroup;
+			children = (
+				09C7A5D8248A439100CBDCBE /* dropbox.mm */,
+				09C7A5D7248A439100CBDCBE /* dropbox.hpp */,
+				09C7A5DC248A43D700CBDCBE /* icloud.mm */,
+				09C7A5DB248A43D700CBDCBE /* icloud.hpp */,
+				09C7A5DF248A45A100CBDCBE /* base.mm */,
+				09C7A5DE248A45A100CBDCBE /* base.hpp */,
+			);
+			path = Clouds;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -181,8 +204,11 @@
 			files = (
 				0990119F2474640900DDFE69 /* Tools-ES.mm in Sources */,
 				099011A02474640900DDFE69 /* Tools.mm in Sources */,
+				09C7A5E0248A45A100CBDCBE /* base.mm in Sources */,
 				09901196247461CF00DDFE69 /* blocker.mm in Sources */,
 				0990117C2474493800DDFE69 /* main.mm in Sources */,
+				09C7A5D9248A439100CBDCBE /* dropbox.mm in Sources */,
+				09C7A5DD248A43D700CBDCBE /* icloud.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

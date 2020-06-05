@@ -41,10 +41,9 @@ void printHelp()
     std::cout << "    -i, --icloud      iCloud"                                      << std::endl;
     std::cout << "    -d, --dropbox     Dropbox"                                     << std::endl;
     std::cout << "Block Levels:"                                                     << std::endl;
-    std::cout << "    none              No blocking"                                 << std::endl;
+    std::cout << "    none              No blocking (DEFAULT)"                       << std::endl;
     std::cout << "    ronly             Read-only mode"                              << std::endl;
     std::cout << "    full              Full blocking mode"                          << std::endl;
-    std::cout << "Default blocking level is \"none\"."                               << std::endl;
     std::cout << std::endl;
 }
 
