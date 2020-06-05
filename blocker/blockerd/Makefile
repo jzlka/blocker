@@ -3,7 +3,7 @@
 # @author     Jozef Zuzelka <jozef.zuzelka@gmail.com>
 # @date
 #  - Created: 18.05.2020 10:38
-#  - Edited:  20.05.2020 18:38
+#  - Edited:  05.06.2020 18:39
 # @version    1.0.0
 # @par        make: GNU Make 3.81
 # @bug
@@ -44,6 +44,8 @@ $(OBJDIR)/%.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 all: directories $(BIN)
+	#$(info $$SRC is [${SRC}])
+	#$(info $$OBJ is [${OBJ}])
 
 $(BIN): $(OBJ)
 	$(CXX) $(LDFLAGS) $(FRAMEWORKS) -o $(BINDIR)/$@ $^

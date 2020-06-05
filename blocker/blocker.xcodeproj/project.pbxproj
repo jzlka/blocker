@@ -18,6 +18,8 @@
 		09C7A5DD248A43D700CBDCBE /* icloud.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5DC248A43D700CBDCBE /* icloud.mm */; };
 		09C7A5E0248A45A100CBDCBE /* base.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5DF248A45A100CBDCBE /* base.mm */; };
 		09C7A5E1248AA29000CBDCBE /* SignalHandler.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0990119E2474632D00DDFE69 /* SignalHandler.mm */; };
+		09C7A5E4248AA42300CBDCBE /* diskblocker.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5E3248AA42300CBDCBE /* diskblocker.mm */; };
+		09C7A5E7248AA43800CBDCBE /* cloudblocker.mm in Sources */ = {isa = PBXBuildFile; fileRef = 09C7A5E6248AA43800CBDCBE /* cloudblocker.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -54,6 +56,10 @@
 		09C7A5DC248A43D700CBDCBE /* icloud.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = icloud.mm; sourceTree = "<group>"; };
 		09C7A5DE248A45A100CBDCBE /* base.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = base.hpp; sourceTree = "<group>"; };
 		09C7A5DF248A45A100CBDCBE /* base.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = base.mm; sourceTree = "<group>"; };
+		09C7A5E2248AA42300CBDCBE /* diskblocker.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = diskblocker.hpp; sourceTree = "<group>"; };
+		09C7A5E3248AA42300CBDCBE /* diskblocker.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = diskblocker.mm; sourceTree = "<group>"; };
+		09C7A5E5248AA43800CBDCBE /* cloudblocker.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = cloudblocker.hpp; sourceTree = "<group>"; };
+		09C7A5E6248AA43800CBDCBE /* cloudblocker.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = cloudblocker.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +100,10 @@
 			children = (
 				09C7A5DA248A439B00CBDCBE /* Clouds */,
 				0990117B2474493800DDFE69 /* main.mm */,
+				09C7A5E3248AA42300CBDCBE /* diskblocker.mm */,
+				09C7A5E2248AA42300CBDCBE /* diskblocker.hpp */,
+				09C7A5E6248AA43800CBDCBE /* cloudblocker.mm */,
+				09C7A5E5248AA43800CBDCBE /* cloudblocker.hpp */,
 				09901195247461CF00DDFE69 /* blocker.mm */,
 				09901194247461CF00DDFE69 /* blocker.hpp */,
 			);
@@ -205,9 +215,11 @@
 			files = (
 				09C7A5E1248AA29000CBDCBE /* SignalHandler.mm in Sources */,
 				0990119F2474640900DDFE69 /* Tools-ES.mm in Sources */,
+				09C7A5E4248AA42300CBDCBE /* diskblocker.mm in Sources */,
 				099011A02474640900DDFE69 /* Tools.mm in Sources */,
 				09C7A5E0248A45A100CBDCBE /* base.mm in Sources */,
 				09901196247461CF00DDFE69 /* blocker.mm in Sources */,
+				09C7A5E7248AA43800CBDCBE /* cloudblocker.mm in Sources */,
 				0990117C2474493800DDFE69 /* main.mm in Sources */,
 				09C7A5D9248A439100CBDCBE /* dropbox.mm in Sources */,
 				09C7A5DD248A43D700CBDCBE /* icloud.mm in Sources */,
