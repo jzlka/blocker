@@ -28,6 +28,9 @@ class CloudBlocker
         };
 
         std::unordered_map<es_event_type_t, EventStats> eventStats;
+        uint64_t blockedEvents = 0;
+        uint64_t allowedEvents = 0;
+        uint64_t respondErrors = 0;
     };
 
     const std::vector<es_event_type_t> m_eventsOfInterest = {

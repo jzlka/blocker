@@ -173,6 +173,9 @@ std::ostream & operator << (std::ostream &out, const CloudBlocker::Stats &stats)
     out << std::endl << "Copy Errors: " << copyErrorsSum;
     out << std::endl << "Kernel Drops: " << kernelDropsSum;
     out << std::endl << "Deadline Drops: " << deadlineDropsSum;
+    out << std::endl << "Allowed Events: " << stats.allowedEvents;
+    out << std::endl << "Blocked Events: " << stats.blockedEvents;
+    out << std::endl << "Respond Errors: " << stats.respondErrors;
     return out;
 }
 
@@ -221,12 +224,31 @@ void CloudBlocker::AuthorizeESEvent(es_client_t * const clt, const es_message_t 
     // Handle subscribed AUTH events
     es_respond_result_t ret;
     if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
-        ret = es_respond_flags_result(clt, msg, std::any_cast<uint32_t>(result), false);
+    {
+        uint32_t resultLocal = std::any_cast<uint32_t>(result);
+        if (resultLocal == msg->event.open.fflag)
+            m_stats.allowedEvents++;
+        else
+            m_stats.blockedEvents++;
+
+        ret = es_respond_flags_result(clt, msg, resultLocal, false);
+    }
     else
+    {
+        es_auth_result_t resultLocal = std::any_cast<es_auth_result_t>(result);
+        if (resultLocal == ES_AUTH_RESULT_ALLOW)
+            m_stats.allowedEvents++;
+        else
+            m_stats.blockedEvents++;
+
         ret = es_respond_auth_result(clt, msg, std::any_cast<es_auth_result_t>(result), false);
+    }
 
     if (ret != ES_RESPOND_RESULT_SUCCESS)
+    {
+        m_stats.respondErrors++;
         g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Error es_respond_auth_result: ", g_respondResultToStrMap.at(ret));
+    }
 }
 
 std::any CloudBlocker::HandleEventImpl(const es_message_t * const msg)
