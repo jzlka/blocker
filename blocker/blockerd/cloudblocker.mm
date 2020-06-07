@@ -198,25 +198,20 @@ void CloudBlocker::IncreaseStats(const CloudBlockerStats metric, const es_event_
     }
 }
 
-std::optional<std::reference_wrapper<const CloudProvider>> CloudBlocker::ResolveCloudProvider(const std::vector<const std::string> &eventPaths)
+std::vector<CloudInstance> CloudBlocker::ResolveCloudProvider(const std::vector<std::string> &eventPaths) const
 {
     // TODO: recognize copy from one CloudProvider to another one
     // TODO: check thread safety of m_config and the returned CloudProvider
     // TODO: make it more effective
+    std::vector<CloudInstance> ret;
     // For every cloud provider
     for (const auto &[cpId,cp] : m_config) {
-        // For every path in the event
-        for (const auto &eventPath : eventPaths) {
-            // Check if the event path is one of cloud provider paths
-            for (const auto &cpPath : cp.paths) {
-                if (eventPath.find(cpPath) != std::string::npos) {
-                    return cp;
-                }
-            }
-        }
+        std::vector<std::string> tmp = cp.FilterCloudFolders(eventPaths);
+        if (!tmp.empty())
+            ret.push_back({cp, tmp});
     }
 
-    return std::nullopt;
+    return ret;
 }
 
 void CloudBlocker::AuthorizeESEvent(es_client_t * const clt, const es_message_t * const msg, const std::any &result)
@@ -225,6 +220,7 @@ void CloudBlocker::AuthorizeESEvent(es_client_t * const clt, const es_message_t 
     es_respond_result_t ret;
     if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
     {
+
         uint32_t resultLocal = std::any_cast<uint32_t>(result);
         if (resultLocal == msg->event.open.fflag)
             m_stats.allowedEvents++;
@@ -248,6 +244,26 @@ void CloudBlocker::AuthorizeESEvent(es_client_t * const clt, const es_message_t 
     {
         m_stats.respondErrors++;
         g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Error es_respond_auth_result: ", g_respondResultToStrMap.at(ret));
+    }
+}
+
+bool IsAllowingResult(const std::any &result, const es_message_t * const msg)
+{
+    if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
+    {
+        uint32_t resultLocal = std::any_cast<uint32_t>(result);
+        if (resultLocal == msg->event.open.fflag)
+            return true;
+        else
+            return false;
+    }
+    else
+    {
+        es_auth_result_t resultLocal = std::any_cast<es_auth_result_t>(result);
+        if (resultLocal == ES_AUTH_RESULT_ALLOW)
+            return true;
+        else
+            return false;
     }
 }
 
@@ -278,14 +294,23 @@ std::any CloudBlocker::HandleEventImpl(const es_message_t * const msg)
     eventStats.lastSeqNum = msg->seq_num;
 
     // !!!: This call WILL crash if called with unsupported event type
-    const std::vector<const std::string> eventPaths = paths_from_event(msg);
+    std::vector<std::string> eventPaths = paths_from_event(msg);
 
-    const auto cp = ResolveCloudProvider(eventPaths);
+    const auto cpPaths = ResolveCloudProvider(eventPaths);
     // Not a supported cloud provider, ignore the event.
-    if (!cp.has_value())
+    if (cpPaths.empty())
         return ret;
 
-    return cp->get().HandleEvent(msg);
+    // In case it's a rename operation from one cloud to the other one,
+    // ask both cloud providers if the operation is allowed.
+    const std::string bundleId = to_string(msg->process->signing_id);
+    std::any tmpRet = ret;
+    for (const auto &[cp,paths] : cpPaths) {
+        tmpRet = cp.get().HandleEvent(bundleId, paths, msg);
+        if (!IsAllowingResult(tmpRet, msg))
+            return tmpRet;
+    }
+    return ret;
 }
 
 // MARK: Callbacks

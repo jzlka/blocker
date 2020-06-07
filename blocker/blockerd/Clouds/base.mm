@@ -8,6 +8,7 @@
 
 #include <any>
 #include <bsm/libbsm.h>
+#include <EndpointSecurity/EndpointSecurity.h>
 
 #include "../../../Common/Tools/Tools-ES.hpp"
 #include "../../../Common/Tools/Tools.hpp"
@@ -25,15 +26,14 @@ const std::unordered_map<CloudProviderId, const std::string> g_cpToStr = {
     {CloudProviderId::ONEDRIVE, "OneDrive"},
 };
 
-bool CloudProvider::BundleIdIsAllowed(const es_string_token_t bundleId) const
+bool CloudProvider::BundleIdIsAllowed(const std::string &bundleId) const
 {
-    return (std::find(allowedBundleIds.begin(), allowedBundleIds.end(), to_string(bundleId)) != allowedBundleIds.end());
+    return (std::find(allowedBundleIds.begin(), allowedBundleIds.end(), bundleId) != allowedBundleIds.end());
 }
 
-std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
+std::any CloudProvider::HandleEvent(const std::string &bundleId, const std::vector<std::string> &cpPaths, const es_message_t * const msg) const
 {
     std::any ret = getDefaultESResponse(msg);
-    const std::vector<const std::string> eventPaths = paths_from_event(msg);
 
     const auto composeDebugMessage = [&]() {
         std::string msgToPrint = "(" + g_blockLvlToStr.at(bl) + ") ";
@@ -57,7 +57,7 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
         }
 
         msgToPrint += " operation at";
-        for (const auto &path : eventPaths)
+        for (const auto &path : cpPaths)
             msgToPrint += " '" + path + "'";
 
         msgToPrint += " by " + to_string(msg->process->signing_id);
@@ -66,13 +66,13 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
     };
 
     // Bundle is allowed, lets do it its job.
-    if (BundleIdIsAllowed(msg->process->signing_id)) {
+    if (BundleIdIsAllowed(bundleId)) {
         g_logger.log(LogLevel::INFO, DEBUG_ARGS, composeDebugMessage());
         return ret;
     }
 
     switch(msg->event_type) {
-            // MARK: NOTIFY
+        // MARK: NOTIFY
         case ES_EVENT_TYPE_NOTIFY_KEXTLOAD:
         case ES_EVENT_TYPE_NOTIFY_KEXTUNLOAD:
         case ES_EVENT_TYPE_NOTIFY_UNMOUNT:
@@ -83,16 +83,18 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
         case ES_EVENT_TYPE_NOTIFY_CLOSE:
             break;
         // MARK: AUTH
+        case ES_EVENT_TYPE_AUTH_READLINK:
         case ES_EVENT_TYPE_AUTH_CHDIR:
         case ES_EVENT_TYPE_AUTH_READDIR:
-            ret = AuthReadGeneral(msg);
+            ret = AuthReadGeneral(bundleId);
             break;
-        case ES_EVENT_TYPE_AUTH_RENAME:
         case ES_EVENT_TYPE_AUTH_CREATE:
-            ret = AuthWriteGeneral(msg);
+        case ES_EVENT_TYPE_AUTH_RENAME:
+        case ES_EVENT_TYPE_AUTH_CLONE:
+            ret = AuthWriteGeneral(bundleId, cpPaths, msg);
             break;
         case ES_EVENT_TYPE_AUTH_OPEN:
-            ret = AuthOpen(msg);
+            ret = AuthOpen(bundleId, cpPaths, msg->event.open.fflag);
             break;
         case ES_EVENT_TYPE_AUTH_MOUNT:
             g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
@@ -105,11 +107,9 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
             if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId)
                 break;
         }
-        case ES_EVENT_TYPE_AUTH_CLONE: // TODO: if the destination is not cloud folder and r-only mode, allow it
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_LINK: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_READLINK:
         case ES_EVENT_TYPE_AUTH_TRUNCATE: // TODO: check when it's called for proper blocking
         {
 
@@ -132,8 +132,18 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
     return ret;
 }
 
+std::vector<std::string> CloudProvider::FilterCloudFolders(const std::vector<std::string> &eventPaths) const
+{
+    std::vector<std::string> ret;
+    for (const auto &eventPath : eventPaths)
+        for (const auto &cpPath : paths)
+            if (eventPath.find(cpPath) != std::string::npos)
+                ret.push_back(eventPath);
+    return ret;
+}
+
 // MARK: - Private
-bool CloudProvider::ContainsDropboxCacheFolder(const std::vector<const std::string> &eventPaths) const
+bool CloudProvider::ContainsDropboxCacheFolder(const std::vector<std::string> &eventPaths) const
 {
     for (const auto &dropboxPath : paths) {
         std::string dropboxCache = dropboxPath + "/.dropbox.cache";
@@ -148,7 +158,7 @@ bool CloudProvider::ContainsDropboxCacheFolder(const std::vector<const std::stri
 // MARK: Callbacks
 /// Allows reading to everybody if in RONLY mode,
 /// otherwise blocks everything except whitelisted apps
-es_auth_result_t CloudProvider::AuthReadGeneral(const es_message_t * const msg) const
+es_auth_result_t CloudProvider::AuthReadGeneral(const std::string &bundleId) const
 {
     es_auth_result_t ret = ES_AUTH_RESULT_ALLOW;
 
@@ -157,7 +167,7 @@ es_auth_result_t CloudProvider::AuthReadGeneral(const es_message_t * const msg) 
         return ret;
 
     // Otherwise block everything except whitelisted apps
-    if (!BundleIdIsAllowed(msg->process->signing_id))
+    if (!BundleIdIsAllowed(bundleId))
         ret = ES_AUTH_RESULT_DENY;
 
     return ret;
@@ -165,18 +175,17 @@ es_auth_result_t CloudProvider::AuthReadGeneral(const es_message_t * const msg) 
 
 /// Blocks all operations except whitelisted apps, and
 /// allows  content modifying operations  by dropbox in dropbox cache folders.
-es_auth_result_t CloudProvider::AuthWriteGeneral(const es_message_t * const msg) const
+es_auth_result_t CloudProvider::AuthWriteGeneral(const std::string &bundleId, const std::vector<std::string> &cpPaths, const es_message_t * const msg) const
 {
     es_auth_result_t ret = ES_AUTH_RESULT_ALLOW;
 
-    if (BundleIdIsAllowed(msg->process->signing_id))
+    if (BundleIdIsAllowed(bundleId))
         return ret;
 
     const std::string dropboxBundleId = "com.getdropbox.dropbox";
-    const std::string bundleId = to_string(msg->process->signing_id);
-    // If the rename is from/to one of Dropbox folders, allow it.
+    // If the operation is from/to one of Dropbox folders, allow it.
     // !!!: we expect that the Dropbox cache folder is not accesible using Dropbox file explorer (which is true so far) so an user cannot do any mess there using the Dropbox app.
-    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(paths_from_event(msg))) {
+    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(cpPaths)) {
         g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Ignoring Dropbox process.");
         return ret;
     }
@@ -185,24 +194,37 @@ es_auth_result_t CloudProvider::AuthWriteGeneral(const es_message_t * const msg)
     if (bl != BlockLevel::NONE)
         ret = ES_AUTH_RESULT_DENY;
 
+    // But in case of CLONE operation...check the direction of the operation.
+    if (bl == BlockLevel::RONLY && msg->event_type == ES_EVENT_TYPE_AUTH_CLONE) {
+        // If it's not cloning within the cloud check the direction.
+        if (cpPaths.size() == 1
+            && cpPaths[0] == to_string(msg->event.clone.source->path)) {
+            // In RONLY mode, we are interested if it the destination is outside of the cloud so we should not block it.
+            ret = ES_AUTH_RESULT_ALLOW;
+        }
+        else {
+            // Otherwise it's being cloned into the cloud. Block it
+            ret = ES_AUTH_RESULT_DENY;
+        }
+    }
+
     // The app is not whitelisted and there is no restriction.
     return ret;
 }
 
-uint32_t CloudProvider::AuthOpen(const es_message_t * const msg) const
+uint32_t CloudProvider::AuthOpen(const std::string &bundleId, const std::vector<std::string> &cpPaths, const uint32_t fflags) const
 {
-    if (msg->event_type != ES_EVENT_TYPE_AUTH_OPEN)
-        throw "Wrong callback called! (open)";
+    if (cpPaths.size() != 1)
+        throw "Open called with wrong paths!";
 
-    uint32_t ret = msg->event.open.fflag;
-    if (BundleIdIsAllowed(msg->process->signing_id))
+    uint32_t ret = fflags;
+    if (BundleIdIsAllowed(bundleId))
         return ret;
 
     const std::string dropboxBundleId = "com.getdropbox.dropbox";
-    const std::string bundleId = to_string(msg->process->signing_id);
-    // If the rename is from/to one of Dropbox folders, allow it.
+    // If the operation is from/to one of Dropbox cache folders, allow it.
     // !!!: we expect that the Dropbox cache folder is not accesible using Dropbox file explorer (which is true so far) so an user cannot do any mess there using the Dropbox app.
-    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(paths_from_event(msg)))
+    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(cpPaths))
         return ret;
 
     // If any restriction is set
@@ -214,7 +236,7 @@ uint32_t CloudProvider::AuthOpen(const es_message_t * const msg) const
         else
             mask = 0;
 
-        ret = msg->event.open.fflag & mask;
+        ret = fflags & mask;
     }
 
     return ret;

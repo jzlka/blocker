@@ -32,6 +32,13 @@ enum class BlockLevel : uint8_t
     FULL,
 };
 
+struct CloudProvider;
+struct CloudInstance
+{
+    std::reference_wrapper<const CloudProvider> cp;
+    std::vector<std::string> eventPaths;
+};
+
 extern const std::unordered_map<CloudProviderId, const std::string> g_cpToStr;
 
 struct CloudProvider
@@ -78,16 +85,17 @@ struct CloudProvider
         return *this;
     }
 
-    bool BundleIdIsAllowed(const es_string_token_t bundleId) const;
+    bool BundleIdIsAllowed(const std::string &bundleId) const;
 
-    std::any HandleEvent(const es_message_t * const msg) const;
+    std::any HandleEvent(const std::string &bundleId, const std::vector<std::string> &cpPaths, const es_message_t * const msg) const;
 
+    std::vector<std::string> FilterCloudFolders(const std::vector<std::string> &eventPaths) const;
 private:
-    bool ContainsDropboxCacheFolder(const std::vector<const std::string> &eventPaths) const;
+    bool ContainsDropboxCacheFolder(const std::vector<std::string> &eventPaths) const;
     // Autorization callbacks
-    es_auth_result_t AuthReadGeneral(const es_message_t * const msg) const;
-    es_auth_result_t AuthWriteGeneral(const es_message_t * const msg) const;
-    uint32_t         AuthOpen(const es_message_t * const msg) const;
+    es_auth_result_t AuthReadGeneral(const std::string &bundleId) const;
+    es_auth_result_t AuthWriteGeneral(const std::string &bundleId, const std::vector<std::string> &cpPaths, const es_message_t * const msg) const;
+    uint32_t         AuthOpen(const std::string &bundleId,const  std::vector<std::string> &cpPaths, const uint32_t fflags) const;
 };
 
 

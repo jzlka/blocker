@@ -61,7 +61,7 @@ class CloudBlocker
     std::unordered_map<CloudProviderId, CloudProvider> m_config;
     std::mutex m_configMtx;
 
-    std::optional<std::reference_wrapper<const CloudProvider>> ResolveCloudProvider(const std::vector<const std::string> &eventPaths);
+    std::vector<CloudInstance> ResolveCloudProvider(const std::vector<std::string> &eventPaths) const;
 
     void AuthorizeESEvent(es_client_t * const clt, const es_message_t * const msg, const std::any &result);
 
