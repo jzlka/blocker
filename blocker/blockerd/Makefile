@@ -12,7 +12,7 @@
 
 ######################## Compiler & flags  ##########################
 CXX=clang++
-CXXFLAGS=-std=c++17 -pedantic -Wall -Wextra -g
+CXXFLAGS=-std=c++17 -pedantic -Wall -Wextra -g -O3
 LDFLAGS=
 FRAMEWORKS=-framework DiskArbitration -framework Foundation -framework SystemConfiguration /usr/lib/libEndpointSecurity.dylib /usr/lib/libbsm.dylib
 

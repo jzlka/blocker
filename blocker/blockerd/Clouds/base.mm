@@ -105,7 +105,7 @@ std::any CloudProvider::HandleEvent(const es_message_t * const msg) const
             if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId)
                 break;
         }
-        case ES_EVENT_TYPE_AUTH_CLONE: // TODO: check when it's called for proper blocking
+        case ES_EVENT_TYPE_AUTH_CLONE: // TODO: if the destination is not cloud folder and r-only mode, allow it
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_LINK: // TODO: check when it's called for proper blocking

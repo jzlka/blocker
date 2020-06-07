@@ -59,7 +59,7 @@ DADissenterRef DiskBlocker::Probing(DADiskRef disk, void *)
     } else {
         /* Return a dissenter to deny */
         std::cerr << "allow_mount: refusing mount >" << (DADiskGetBSDName(disk) ? DADiskGetBSDName(disk) : "") << "<." << std::endl;
-        m_stats.deniedDisks++;
+        m_stats.blockedDisks++;
         return DADissenterCreate(
                                  kCFAllocatorDefault,
                                  kDAReturnExclusiveAccess,
@@ -158,8 +158,21 @@ void DiskBlocker::Uninit()
     CFRelease(m_session);
 }
 
+std::ostream & operator << (std::ostream &out, const DiskBlocker::Stats &stats)
+{
+
+    out << "--- DISK BLOCKER STATS ---";
+    out << std::endl << "Connected Disks: " << stats.connectedDisks;
+    out << std::endl << "Removed Disks: " << stats.removedDisks;
+    out << std::endl << "Renamed Disks: " << stats.renamedDisks;
+    out << std::endl << "Allowed Disks: " << stats.allowedDisks;
+    out << std::endl << "Blocked Disks: " << stats.blockedDisks;
+    return out;
+}
+
 void DiskBlocker::PrintStats()
 {
+    std::cout << m_stats << std::endl;
 }
 
 DiskBlocker& DiskBlocker::GetInstance()

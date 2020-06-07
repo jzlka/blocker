@@ -26,13 +26,15 @@ class DiskBlocker
     struct Stats {
         uint64_t connectedDisks = 0;
         uint64_t allowedDisks   = 0;
-        uint64_t deniedDisks    = 0;
+        uint64_t blockedDisks   = 0;
         uint64_t removedDisks   = 0;
         uint64_t renamedDisks   = 0;
     };
 
     _Nullable DASessionRef m_session = nullptr;
     Stats m_stats;
+
+    friend std::ostream & operator << (std::ostream &out, const DiskBlocker::Stats &stats);
 
 public:
     DiskBlocker() = default;

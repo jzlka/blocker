@@ -158,7 +158,7 @@ std::ostream & operator << (std::ostream &out, const CloudBlocker::Stats &stats)
     uint64_t kernelDropsSum = 0;
     uint64_t deadlineDropsSum = 0;
 
-    out << "--- BLOCKER STATS ---";
+    out << "--- CLOUD BLOCKER STATS ---";
     for (const auto &[eventType,eventStats] : stats.eventStats) {
         out << std::endl << "Event: " << g_eventTypeToStrMap.at(eventType);
         copyErrorsSum += eventStats.copyErr;
