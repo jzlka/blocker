@@ -91,6 +91,7 @@ std::any CloudProvider::HandleEvent(const std::string &bundleId, const std::vect
         case ES_EVENT_TYPE_AUTH_CREATE:
         case ES_EVENT_TYPE_AUTH_RENAME:
         case ES_EVENT_TYPE_AUTH_CLONE:
+        case ES_EVENT_TYPE_AUTH_UNLINK:
             ret = AuthWriteGeneral(bundleId, cpPaths, msg);
             break;
         case ES_EVENT_TYPE_AUTH_OPEN:
@@ -99,14 +100,6 @@ std::any CloudProvider::HandleEvent(const std::string &bundleId, const std::vect
         case ES_EVENT_TYPE_AUTH_MOUNT:
             g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
             break;
-        case ES_EVENT_TYPE_AUTH_UNLINK: // TODO: check when it's called for proper blocking
-        {
-            // Allow dropbox to unlink the file. It first moves it either to old_files or into the .Trash, then unlinks it.
-            const std::string dropboxBundleId = "com.getdropbox.dropbox";
-            const std::string bundleId = to_string(msg->process->signing_id);
-            if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId)
-                break;
-        }
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE: // TODO: check when it's called for proper blocking
         case ES_EVENT_TYPE_AUTH_LINK: // TODO: check when it's called for proper blocking
