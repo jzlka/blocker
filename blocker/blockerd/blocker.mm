@@ -5,9 +5,6 @@
 //  Created by Jozef on 19/05/2020.
 //  Copyright © 2020 Jozef Zuzelka. All rights reserved.
 //
-// TODO: osetrit vynimky na future a std::any, casty a vlastne vsetky ostatne
-// TODO: moze byt nebezpecne ked pridaju novy auth event vracajuci flagy a neosetri sa to v default
-// TODO: skontrolovat thread safety
 
 #include <unordered_map>
 

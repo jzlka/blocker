@@ -100,10 +100,10 @@ std::any CloudProvider::HandleEvent(const std::string &bundleId, const std::vect
         case ES_EVENT_TYPE_AUTH_MOUNT:
             g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
             break;
-        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_LINK: // TODO: check when it's called for proper blocking
-        case ES_EVENT_TYPE_AUTH_TRUNCATE: // TODO: check when it's called for proper blocking
+        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE:
+        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE:
+        case ES_EVENT_TYPE_AUTH_LINK:
+        case ES_EVENT_TYPE_AUTH_TRUNCATE:
         {
 
             // These events are content-changing operations so we don't need to check the mode.
@@ -225,7 +225,7 @@ uint32_t CloudProvider::AuthOpen(const std::string &bundleId, const std::vector<
         uint32_t mask = ~0;
 
         if (bl == BlockLevel::RONLY)
-            mask = ~(FWRITE | FAPPEND | O_CREAT); // TODO: validate these flags
+            mask = ~(FWRITE | FAPPEND | O_CREAT);
         else
             mask = 0;
 

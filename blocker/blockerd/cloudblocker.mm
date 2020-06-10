@@ -190,7 +190,7 @@ void CloudBlocker::IncreaseStats(const CloudBlockerStats metric, const es_event_
             m_stats.eventStats[type].copyErr += count;
             break;
         case CloudBlockerStats::EVENT_DROPPED_KERNEL:
-            m_stats.eventStats[type].droppedKernel += count; // TODO: take ignored events into account
+            m_stats.eventStats[type].droppedKernel += count;
             break;
         case CloudBlockerStats::EVENT_DROPPED_DEADLINE:
             m_stats.eventStats[type].droppedDeadline += count;
@@ -200,8 +200,6 @@ void CloudBlocker::IncreaseStats(const CloudBlockerStats metric, const es_event_
 
 std::vector<CloudInstance> CloudBlocker::ResolveCloudProvider(const std::vector<std::string> &eventPaths) const
 {
-    // TODO: recognize copy from one CloudProvider to another one
-    // TODO: check thread safety of m_config and the returned CloudProvider
     // TODO: make it more effective
     std::vector<CloudInstance> ret;
     // For every cloud provider

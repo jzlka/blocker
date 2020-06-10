@@ -11,5 +11,4 @@
 std::vector<std::string> ICloud::FindPaths(const std::string &homePath)
 {
     return { homePath + "/Library/Mobile Documents" }; // $HOME/Library/Mobile Documents/com~apple~CloudDocs
-    // TODO: in full blocking mode an exception needs to be added for linked Desktop and Downloads folder?
 }
