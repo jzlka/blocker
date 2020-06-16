@@ -1,6 +1,5 @@
 os: osx
 language: generic
-sudo: true
 
 jobs:
   include:
