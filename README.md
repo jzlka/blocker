@@ -3,7 +3,7 @@ Control of External Devices on macOS to Prevent Data Leaks
 [![Build Status](https://travis-ci.com/TheKuko/blocker.svg?branch=master)](https://travis-ci.com/TheKuko/blocker)
 
 
-PoC of restricting an access to cloud drives. Uses Endpoint Security framework and currently supports iCloud and (partially) Dropbox
+PoC of restricting an access to cloud drives. Uses Endpoint Security framework and currently supports iCloud and (partially) Dropbox.
 Its functionality is described in *[thesis.pdf](https://thekuko.github.io/blocker/docs/thesis.pdf)* (Chapter 8).
 
 ### Features ###
