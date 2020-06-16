@@ -1,3 +1,8 @@
+---
+layout: index
+---
+
+
 Control of External Devices on macOS to Prevent Data Leaks
 ===
 [![Build Status](https://travis-ci.com/TheKuko/blocker.svg?branch=master)](https://travis-ci.com/TheKuko/blocker)
@@ -13,6 +18,7 @@ Its functionality is described in *[thesis.pdf](https://thekuko.github.io/blocke
 
 ### Dependencies ###
 - SIP disabled
+    - `csrutil disable`
 
 The application was tested on the following platforms:
 - macOS:
@@ -28,15 +34,15 @@ or
 ```bash
 git clone https://github.com/TheKuko/blocker.git
 cd blocker/blocker/
-//xcbuild TODO
+#xcbuild TODO
 ```
-Final binary (_blockerd_) is located in the current folder.
+Final binary (**_blockerd_**) is located in the folder with source files (in case of build using Makekile).
 
 ### Makefile parameters
 
     * make              - build the tool
     * make test         - run basic tests (**TODO**)
-    * make clean        - clean compiled binary, object files and \*.dSYM files
+    * make clean        - clean compiled binary, object files and &ast;.dSYM files
 
 [//]: # (    * make clean-all    - clean, clean-tests, clean-doc)
 [//]: # (    * make libs         - run helper script to download & install PF_RING/netmap/PFQ [interactive])
