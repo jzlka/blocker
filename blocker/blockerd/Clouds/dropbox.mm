@@ -9,7 +9,6 @@
 #include <fstream>
 #include <regex>
 #include <sstream>
-#include <mach/mach.h>  // panic
 
 #include "../../../Common/Tools/Tools-ES.hpp"
 #include "../../../Common/logger.hpp"
@@ -19,7 +18,7 @@ static Logger &g_logger = Logger::getInstance();
 
 std::vector<std::string> Dropbox::FindPaths(const std::string &homePath)
 {
-    std::string path;
+    std::vector<std::string> paths;
 
 
     const std::string configFile = homePath + "/.dropbox/info.json";
@@ -32,12 +31,8 @@ std::vector<std::string> Dropbox::FindPaths(const std::string &homePath)
     const std::regex pathRegex("\"path\": \"(.*)\","); // TODO: If the path contains ", we are f...
     std::smatch pathMatch;
     std::string line;
-    int i = 0;
     while (std::getline(dropboxInfo, line))
     {
-        if (++i > 1)
-            panic("Needs to be implemented: Dropbox configuration has more than one line!");
-
         std::istringstream iss(line);
         g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Dropbox: config read: ", line);
 
@@ -52,7 +47,7 @@ std::vector<std::string> Dropbox::FindPaths(const std::string &homePath)
         }
 
         g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Dropbox: match[0] ", pathMatch[0], " match[1] ", pathMatch[1]);
-        path = pathMatch[1];
+        paths.push_back(pathMatch[1]);
     }
-    return { path };
+    return paths;
 }
