@@ -25,6 +25,12 @@ git clone https://github.com/TheKuko/blocker.git
 cd blocker/blocker/blockerd
 make && cd ../ && ./sign.sh && cd blockerd
 ```
+or
+```bash
+git clone https://github.com/TheKuko/blocker.git
+cd blocker/blocker/
+//xcbuild TODO
+```
 Final binary (_blockerd_) is located in the current folder.
 
 ### Makefile parameters
