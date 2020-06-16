@@ -78,6 +78,7 @@ std::any CloudProvider::HandleEvent(const std::string &bundleId, const std::vect
         case ES_EVENT_TYPE_NOTIFY_UNMOUNT:
         case ES_EVENT_TYPE_NOTIFY_EXCHANGEDATA:
         case ES_EVENT_TYPE_NOTIFY_WRITE:
+            // For debug reasons to uncover when it's called
             g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
         case ES_EVENT_TYPE_NOTIFY_ACCESS:
         case ES_EVENT_TYPE_NOTIFY_CLOSE:
@@ -88,6 +89,12 @@ std::any CloudProvider::HandleEvent(const std::string &bundleId, const std::vect
         case ES_EVENT_TYPE_AUTH_READDIR:
             ret = AuthReadGeneral(bundleId);
             break;
+        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE:
+        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE:
+        case ES_EVENT_TYPE_AUTH_LINK:
+        case ES_EVENT_TYPE_AUTH_TRUNCATE:
+            // For debug reasons to uncover when it's called
+            g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
         case ES_EVENT_TYPE_AUTH_CREATE:
         case ES_EVENT_TYPE_AUTH_RENAME:
         case ES_EVENT_TYPE_AUTH_CLONE:
@@ -98,22 +105,9 @@ std::any CloudProvider::HandleEvent(const std::string &bundleId, const std::vect
             ret = AuthOpen(bundleId, cpPaths, msg->event.open.fflag);
             break;
         case ES_EVENT_TYPE_AUTH_MOUNT:
+            // For debug reasons to uncover when it's called and event details
             g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
             break;
-        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_MATERIALIZE:
-        case ES_EVENT_TYPE_AUTH_FILE_PROVIDER_UPDATE:
-        case ES_EVENT_TYPE_AUTH_LINK:
-        case ES_EVENT_TYPE_AUTH_TRUNCATE:
-        {
-
-            // These events are content-changing operations so we don't need to check the mode.
-            // Just deny the operation if there is any restriction...
-            if (bl != BlockLevel::NONE)
-                ret = (es_auth_result_t)ES_AUTH_RESULT_DENY;
-
-            g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
-            break;
-        }
         default: {
             g_logger.log(LogLevel::WARNING, DEBUG_ARGS, "DEFAULT (should not happen!): ", g_eventTypeToStrMap.at(msg->event_type));
             g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, msg);
@@ -139,7 +133,7 @@ std::vector<std::string> CloudProvider::FilterCloudFolders(const std::vector<std
 bool CloudProvider::ContainsDropboxCacheFolder(const std::vector<std::string> &eventPaths) const
 {
     for (const auto &dropboxPath : paths) {
-        std::string dropboxCache = dropboxPath + "/.dropbox.cache";
+        const std::string dropboxCache = dropboxPath + "/.dropbox.cache";
 
         for (const auto &eventPath : eventPaths)
             if (eventPath.find(dropboxCache) != std::string::npos)
