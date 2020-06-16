@@ -13,6 +13,7 @@ Its functionality is described in *[thesis.pdf](https://thekuko.github.io/blocke
 
 ### Dependencies ###
 - SIP disabled
+    - `csrutil disable`
 
 The application was tested on the following platforms:
 - macOS:
