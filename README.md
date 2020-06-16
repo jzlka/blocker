@@ -1,7 +1,6 @@
 Control of External Devices on macOS to Prevent Data Leaks
 ===
 [![Build Status](https://travis-ci.com/TheKuko/blocker.svg?branch=master)](https://travis-ci.com/TheKuko/blocker)
-[//]: # ( [![Build status](https://ci.appveyor.com/api/projects/status/gow7petki0obew78?svg=true)](https://ci.appveyor.com/project/TheKuko/namon))
 
 
 PoC of restricting an access to cloud drives. Uses Endpoint Security framework and currently supports iCloud and (partially) Dropbox
