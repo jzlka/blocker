@@ -1,0 +1,27 @@
+os: osx
+language: generic
+sudo: true
+
+jobs:
+  include:
+    - name: "Xcode 11.5"
+      osx_image: xcode11.5
+    - name: "Xcode 11.4"
+      osx_image: xcode11.4
+
+branches:
+  only:
+    - master
+
+before_script:
+  - cd blocker/blockerd
+
+script:
+  - make
+  - cd ../ && ./sign.sh && cd blockerd
+
+after_script:
+  - sudo blockerd -h
+
+#todo test bin/tool --help
+#https://gist.github.com/nabijaczleweli/e53219d037c4ccb34f3c
