@@ -90,12 +90,11 @@ struct CloudProvider
     std::any HandleEvent(const std::string &bundleId, const std::vector<std::string> &cpPaths, const es_message_t * const msg) const;
 
     std::vector<std::string> FilterCloudFolders(const std::vector<std::string> &eventPaths) const;
-private:
-    bool ContainsDropboxCacheFolder(const std::vector<std::string> &eventPaths) const;
+protected:
     // Autorization callbacks
     es_auth_result_t AuthReadGeneral(const std::string &bundleId) const;
-    es_auth_result_t AuthWriteGeneral(const std::string &bundleId, const std::vector<std::string> &cpPaths, const es_message_t * const msg) const;
-    uint32_t         AuthOpen(const std::string &bundleId,const  std::vector<std::string> &cpPaths, const uint32_t fflags) const;
+    virtual es_auth_result_t AuthWriteGeneral(const std::string &bundleId, const std::vector<std::string> &cpPaths, const es_message_t * const msg) const;
+    virtual uint32_t         AuthOpen(const std::string &bundleId,const  std::vector<std::string> &cpPaths, const uint32_t fflags) const;
 };
 
 

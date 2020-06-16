@@ -24,6 +24,10 @@ struct Dropbox : public CloudProvider
     ~Dropbox() = default;
 
     static std::vector<std::string> FindPaths(const std::string &homePath);
+    es_auth_result_t AuthWriteGeneral(const std::string &bundleId, const std::vector<std::string> &cpPaths, const es_message_t * const msg) const override;
+    uint32_t AuthOpen(const std::string &bundleId,const  std::vector<std::string> &cpPaths, const uint32_t fflags) const override;
+private:
+    bool ContainsDropboxCacheFolder(const std::vector<std::string> &eventPaths) const;
 };
 
 #endif /* dropbox_hpp */
