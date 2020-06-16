@@ -3,7 +3,7 @@
 # @author     Jozef Zuzelka <jozef.zuzelka@gmail.com>
 # @date
 #  - Created: 18.05.2020 10:38
-#  - Edited:  05.06.2020 19:45
+#  - Edited:  16.06.2020 13:42
 # @version    1.0.0
 # @par        make: GNU Make 3.81
 # @bug
@@ -54,5 +54,5 @@ directories:
 
 
 clean:
-	rm -rf $(OBJDIR)
+	rm -rf $(OBJDIR) *.dSYM
 	rm -f $(BINDIR)/$(BIN)
