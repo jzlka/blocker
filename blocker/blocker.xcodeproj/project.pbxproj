@@ -186,7 +186,7 @@
 		099011702474493800DDFE69 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1140;
+				LastUpgradeCheck = 1150;
 				ORGANIZATIONNAME = "Jozef Zuzelka";
 				TargetAttributes = {
 					099011772474493800DDFE69 = {
@@ -346,6 +346,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = blockerd.entitlements;
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = VN555WY3S4;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -358,6 +359,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = blockerd.entitlements;
+				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = VN555WY3S4;
 				ENABLE_HARDENED_RUNTIME = YES;
