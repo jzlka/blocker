@@ -131,13 +131,13 @@ bool CloudBlocker::Configure(const std::unordered_map<CloudProviderId, BlockLeve
             case CloudProviderId::ICLOUD:
             {
                 paths = ICloud::FindPaths(homePath);
-                m_config.insert(std::make_pair(cpId, ICloud(blkLvl, paths)));
+                m_config[cpId] = ICloud(blkLvl, paths);
                 break;
             }
             case CloudProviderId::DROPBOX:
             {
                 paths = Dropbox::FindPaths(homePath);
-                m_config.insert(std::make_pair(cpId, Dropbox(blkLvl, paths)));
+                m_config[cpId] = Dropbox(blkLvl, paths);
                 break;
             }
             default:

@@ -129,7 +129,19 @@ std::vector<std::string> CloudProvider::FilterCloudFolders(const std::vector<std
     return ret;
 }
 
-// MARK: - Protected
+// MARK: - Private
+bool CloudProvider::ContainsDropboxCacheFolder(const std::vector<std::string> &eventPaths) const
+{
+    for (const auto &dropboxPath : paths) {
+        const std::string dropboxCache = dropboxPath + "/.dropbox.cache";
+
+        for (const auto &eventPath : eventPaths)
+            if (eventPath.find(dropboxCache) != std::string::npos)
+                return true;
+    }
+    return false;
+}
+
 // MARK: Callbacks
 /// Allows reading to everybody if in RONLY mode,
 /// otherwise blocks everything except whitelisted apps
@@ -156,6 +168,14 @@ es_auth_result_t CloudProvider::AuthWriteGeneral(const std::string &bundleId, co
 
     if (BundleIdIsAllowed(bundleId))
         return ret;
+
+    const std::string dropboxBundleId = "com.getdropbox.dropbox";
+    // If the operation is from/to one of Dropbox folders, allow it.
+    // !!!: we expect that the Dropbox cache folder is not accesible using Dropbox file explorer (which is true so far) so an user cannot do any mess there using the Dropbox app.
+    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(cpPaths)) {
+        g_logger.log(LogLevel::VERBOSE, DEBUG_ARGS, "Ignoring Dropbox process.");
+        return ret;
+    }
 
     // If there is any restriction block the operation.
     if (bl != BlockLevel::NONE)
@@ -186,6 +206,12 @@ uint32_t CloudProvider::AuthOpen(const std::string &bundleId, const std::vector<
 
     uint32_t ret = fflags;
     if (BundleIdIsAllowed(bundleId))
+        return ret;
+
+    const std::string dropboxBundleId = "com.getdropbox.dropbox";
+    // If the operation is from/to one of Dropbox cache folders, allow it.
+    // !!!: we expect that the Dropbox cache folder is not accesible using Dropbox file explorer (which is true so far) so an user cannot do any mess there using the Dropbox app.
+    if (id == CloudProviderId::DROPBOX && bundleId == dropboxBundleId && ContainsDropboxCacheFolder(cpPaths))
         return ret;
 
     // If any restriction is set
