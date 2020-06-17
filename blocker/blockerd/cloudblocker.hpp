@@ -58,7 +58,7 @@ class CloudBlocker
     es_client_t *m_clt = nullptr;
     Stats m_stats;
     std::mutex m_statsMtx;
-    std::unordered_map<CloudProviderId, CloudProvider> m_config;
+    std::unordered_map<CloudProviderId, CloudProvider&&> m_config;
     std::mutex m_configMtx;
 
     std::vector<CloudInstance> ResolveCloudProvider(const std::vector<std::string> &eventPaths) const;
