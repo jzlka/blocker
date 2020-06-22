@@ -301,6 +301,8 @@ std::any CloudBlocker::HandleEventImpl(const es_message_t * const msg)
 // MARK: Callbacks
 void CloudBlocker::HandleEvent(es_client_t * const clt, const es_message_t * const msg)
 {
+    std::any result = getDefaultESResponse(msg);
+
     try {
         if (msg == nullptr) {
             g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Received null argument");
@@ -310,7 +312,6 @@ void CloudBlocker::HandleEvent(es_client_t * const clt, const es_message_t * con
         uint64_t msecDeadline = mach_time_to_msecs(msg->deadline);
         // Set deadline a bit sooner
         const std::chrono::milliseconds f_msecDeadline { msecDeadline - (msecDeadline >> 3) }; // substract 12.5%
-        std::any result = getDefaultESResponse(msg);
 
         std::future<std::any> f = std::async(std::launch::async, &CloudBlocker::HandleEventImpl, this, msg);
         const std::future_status f_res = f.wait_until(std::chrono::steady_clock::now() + f_msecDeadline);
@@ -333,15 +334,14 @@ void CloudBlocker::HandleEvent(es_client_t * const clt, const es_message_t * con
             else
                 result = resultTmp;
         }
-
-        AuthorizeESEvent(clt, msg, result);
-
     } catch (const std::exception &e) {
         g_logger.log(LogLevel::ERR, DEBUG_ARGS, e.what());
     }
     catch (...) {
         g_logger.log(LogLevel::ERR, DEBUG_ARGS, "Unknown exception!");
     }
+
+    AuthorizeESEvent(clt, msg, result);
 }
 
 void CloudBlocker::PrintStats()
