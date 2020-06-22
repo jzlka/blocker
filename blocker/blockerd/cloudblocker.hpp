@@ -64,6 +64,7 @@ class CloudBlocker
     std::vector<CloudInstance> ResolveCloudProvider(const std::vector<std::string> &eventPaths) const;
 
     void AuthorizeESEvent(es_client_t * const clt, const es_message_t * const msg, const std::any &result);
+    bool IsAllowingResult(const std::any &result, const es_message_t * const msg);
 
     std::any HandleEventImpl(const es_message_t * const msg);
 

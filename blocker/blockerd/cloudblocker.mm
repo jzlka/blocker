@@ -214,29 +214,16 @@ std::vector<CloudInstance> CloudBlocker::ResolveCloudProvider(const std::vector<
 
 void CloudBlocker::AuthorizeESEvent(es_client_t * const clt, const es_message_t * const msg, const std::any &result)
 {
-    // Handle subscribed AUTH events
+    if (IsAllowingResult(result, msg))
+        m_stats.allowedEvents++;
+    else
+        m_stats.blockedEvents++;
+
     es_respond_result_t ret;
     if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
-    {
-
-        uint32_t resultLocal = std::any_cast<uint32_t>(result);
-        if (resultLocal == msg->event.open.fflag)
-            m_stats.allowedEvents++;
-        else
-            m_stats.blockedEvents++;
-
-        ret = es_respond_flags_result(clt, msg, resultLocal, false);
-    }
+        ret = es_respond_flags_result(clt, msg, std::any_cast<uint32_t>(result), false);
     else
-    {
-        es_auth_result_t resultLocal = std::any_cast<es_auth_result_t>(result);
-        if (resultLocal == ES_AUTH_RESULT_ALLOW)
-            m_stats.allowedEvents++;
-        else
-            m_stats.blockedEvents++;
-
         ret = es_respond_auth_result(clt, msg, std::any_cast<es_auth_result_t>(result), false);
-    }
 
     if (ret != ES_RESPOND_RESULT_SUCCESS)
     {
@@ -245,7 +232,7 @@ void CloudBlocker::AuthorizeESEvent(es_client_t * const clt, const es_message_t 
     }
 }
 
-bool IsAllowingResult(const std::any &result, const es_message_t * const msg)
+bool CloudBlocker::IsAllowingResult(const std::any &result, const es_message_t * const msg)
 {
     if (msg->event_type == ES_EVENT_TYPE_AUTH_OPEN)
     {
