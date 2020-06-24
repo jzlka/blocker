@@ -3,7 +3,6 @@
 //  blockerd
 //
 //  Created by Jozef on 05/06/2020.
-//  Copyright © 2020 Jozef Zuzelka. All rights reserved.
 //
 
 #ifndef diskblocker_hpp

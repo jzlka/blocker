@@ -3,10 +3,6 @@
 //  blockerd
 //
 //  Created by Jozef on 15/05/2020.
-//  Copyright © 2020 Jozef Zuzelka. All rights reserved.
-//
-// todo:     es_mute_path_literal(endpointClient, [NSProcessInfo.processInfo.arguments[0] UTF8String]);
-// Source: https://gist.github.com/Omar-Ikram/8e6721d8e83a3da69b31d4c2612a68ba/
 
 
 #include <atomic>

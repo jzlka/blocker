@@ -3,7 +3,6 @@
 //  blockerd
 //
 //  Created by Jozef on 19/05/2020.
-//  Copyright © 2020 Jozef Zuzelka. All rights reserved.
 //
 
 #ifndef blocker_hpp
