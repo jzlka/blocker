@@ -1,4 +1,4 @@
-Control of External Devices on macOS to Prevent Data Leaks
+Control of External Devices on macOS
 ===
 [![Build Status](https://travis-ci.com/TheKuko/blocker.svg?branch=master)](https://travis-ci.com/TheKuko/blocker)
 
