@@ -4,7 +4,7 @@
 #   @author     Jozef Zuzelka <jozef.zuzelka@gmail.com>
 #   @date
 #    - Created: 07.06.2020 11:39
-#    - Edited:  07.06.2020 20:26
+#    - Edited:  29.06.2020 14:09
 #   @version    1.0.0
 #   @par        SHELL: zsh 5.7.1 (x86_64-apple-darwin19.0)
 #   @bug
@@ -21,6 +21,9 @@ function doTest {
 	local tfile=$(mktemp "$TESTING_PATH/blockerd.XXXXX")
 	local tfile_remove=$(mktemp "$TESTING_PATH/blockerd.remove.XXXXX")
 	local tfile_rename=$(mktemp "$TESTING_PATH/blockerd.rename.XXXXX")
+	local tfile_exchange1=$(mktemp "$TESTING_PATH/blockerd.exchange1.XXXXX")
+	local tfile_exchange2=$(mktemp "$TESTING_PATH/blockerd.exchange2.XXXXX")
+    gcc -o "$TESTING_PATH/exchange_bin" exchange_data.cpp
 	local log_file=$(mktemp "./blockerd.out.$(echo "$TESTING_PATH" | tr -d '/').$MODE.XXXXX")
 	echo TESTING > "$tfile"
 
@@ -98,8 +101,9 @@ function doTest {
 	checkResult
 
 	# EXCHANGE DATA
-	#printf "Testing EXCHANGE DATA: "
-	#checkResult
+	printf "Testing EXCHANGE DATA: "
+    "$TESTING_PATH"/exchange_bin "$tfile_exchange1" "$tfile_exchange2"
+	checkResult
 
 
 	sudo pkill -15 blockerd
@@ -116,6 +120,8 @@ function doTest {
 	rm -f "$tfile_duplicate"
 	rm -f "$tfile_harlink"
 	rm -f "$tfile_symlink"
+    rm -f "$tfile_exchange1"
+    rm -f "$tfile_exchange2"
 }
 
 
