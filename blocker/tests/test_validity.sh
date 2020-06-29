@@ -4,7 +4,7 @@
 #   @author     Jozef Zuzelka <jozef.zuzelka@gmail.com>
 #   @date
 #    - Created: 07.06.2020 11:39
-#    - Edited:  29.06.2020 14:09
+#    - Edited:  29.06.2020 14:17
 #   @version    1.0.0
 #   @par        SHELL: zsh 5.7.1 (x86_64-apple-darwin19.0)
 #   @bug
@@ -23,7 +23,6 @@ function doTest {
 	local tfile_rename=$(mktemp "$TESTING_PATH/blockerd.rename.XXXXX")
 	local tfile_exchange1=$(mktemp "$TESTING_PATH/blockerd.exchange1.XXXXX")
 	local tfile_exchange2=$(mktemp "$TESTING_PATH/blockerd.exchange2.XXXXX")
-    gcc -o "$TESTING_PATH/exchange_bin" exchange_data.cpp
 	local log_file=$(mktemp "./blockerd.out.$(echo "$TESTING_PATH" | tr -d '/').$MODE.XXXXX")
 	echo TESTING > "$tfile"
 
@@ -131,6 +130,7 @@ sudo -v
 DROPBOX_PATH="$HOME/tmp/Dropbox"
 ICLOUD_PATH=~"/Library/Mobile Documents/com~apple~CloudDocs"
 BINARY=./blockerd
+g++ -o "/tmp/exchange_bin" exchange_data.cpp
 
 doTest "$DROPBOX_PATH" "ronly"
 read -e "?Press any key to continue on next test..."
@@ -139,3 +139,5 @@ read -e "?Press any key to continue on next test..."
 doTest "$ICLOUD_PATH" "ronly"
 read -e "?Press any key to continue on next test..."
 doTest "$ICLOUD_PATH" "full"
+
+rm -f/tmp/exchange_bin
