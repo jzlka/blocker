@@ -4,7 +4,7 @@
 #   @author     Jozef Zuzelka <jozef.zuzelka@gmail.com>
 #   @date
 #    - Created: 07.06.2020 11:39
-#    - Edited:  29.06.2020 14:19
+#    - Edited:  29.06.2020 14:20
 #   @version    1.0.0
 #   @par        SHELL: zsh 5.7.1 (x86_64-apple-darwin19.0)
 #   @bug
@@ -100,7 +100,7 @@ function doTest {
 	checkResult
 
 	# EXCHANGE DATA
-	printf "Testing EXCHANGE DATA: "
+	printf "Testing EXCHANGE DATA <$tfile_exchange1> <$tfile_exchange2>: "
     /tmp/exchange_bin "$tfile_exchange1" "$tfile_exchange2"
 	checkResult
 
