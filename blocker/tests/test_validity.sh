@@ -4,7 +4,7 @@
 #   @author     Jozef Zuzelka <jozef.zuzelka@gmail.com>
 #   @date
 #    - Created: 07.06.2020 11:39
-#    - Edited:  29.06.2020 14:17
+#    - Edited:  29.06.2020 14:19
 #   @version    1.0.0
 #   @par        SHELL: zsh 5.7.1 (x86_64-apple-darwin19.0)
 #   @bug
@@ -101,7 +101,7 @@ function doTest {
 
 	# EXCHANGE DATA
 	printf "Testing EXCHANGE DATA: "
-    "$TESTING_PATH"/exchange_bin "$tfile_exchange1" "$tfile_exchange2"
+    /tmp/exchange_bin "$tfile_exchange1" "$tfile_exchange2"
 	checkResult
 
 
@@ -140,4 +140,4 @@ doTest "$ICLOUD_PATH" "ronly"
 read -e "?Press any key to continue on next test..."
 doTest "$ICLOUD_PATH" "full"
 
-rm -f/tmp/exchange_bin
+rm -f /tmp/exchange_bin
