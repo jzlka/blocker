@@ -64,7 +64,7 @@ blockerd [-v[<level>]] [<cloud_provider> <block_level>] [-h]
 
 <!---
 ## Author
-Jozef Zuzelka <jozef.zuzelka@gmail.com>
+Jozef Zuzelka
 -->
 <!---
 ## More information
