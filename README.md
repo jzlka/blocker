@@ -62,8 +62,11 @@ blockerd [-v[<level>]] [<cloud_provider> <block_level>] [-h]
 |`ronly`                                 |Only content non-modifying operations are allowed, and background processes needed for cloud synchronization.                            |
 |`full`                                  |All file operations are blocked except background processes needed for cloud synchronization.                                            |
 
+<!---
 ## Author
-Jozef Zuzelka <jozef.zuzelka@gmail.com>
-
+Jozef Zuzelka
+-->
+<!---
 ## More information
 * ZUZELKA, Jozef. Control of External Devices on macOS to Prevent Data Leaks. Brno, 2020. Master’s thesis. Brno University of Technology, Faculty of Information Technology. Supervisor Ing. Jan Pluskal ([thesis.pdf](https://thekuko.github.io/blocker/docs/thesis.pdf))
+-->
