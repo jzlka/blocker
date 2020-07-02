@@ -4,7 +4,7 @@ Control of External Devices on macOS
 
 
 PoC of restricting an access to cloud drives. Uses Endpoint Security framework and currently supports iCloud and (partially) Dropbox.
-Its functionality is described in *[thesis.pdf](https://thekuko.github.io/blocker/docs/thesis.pdf)* (Chapter 8).
+<!--- Its functionality is described in *[thesis.pdf](https://thekuko.github.io/blocker/docs/thesis.pdf)* (Chapter 8). -->
 
 ### Features ###
 - Shows way of restricting work with **iCloud**
@@ -62,7 +62,7 @@ blockerd [-v[<level>]] [<cloud_provider> <block_level>] [-h]
 |`ronly`                                 |Only content non-modifying operations are allowed, and background processes needed for cloud synchronization.                            |
 |`full`                                  |All file operations are blocked except background processes needed for cloud synchronization.                                            |
 
-<!---
+<!--
 ## Author
 Jozef Zuzelka
 -->
