@@ -41,7 +41,15 @@ function runTest {
 		# Not safe but working
 		# https://stackoverflow.com/questions/6958689/running-multiple-commands-with-xargs
 		#time find $srcdir -print0 | xargs -0 -I % echo 'test -r "%" && echo "Allowed" || echo "Blocked"' | bash
-		time_no_block=$( { time cp -R $srcdir/ $dstdir/ 2>/dev/null } 2>&1 )
+		nroffiles=$(ls "$srcdir" | wc -w)
+		MAX_PARALLEL=$nroffiles
+		setsize=$(( nroffiles/MAX_PARALLEL ))
+		time_no_block=$( { time
+			ls -1 "$srcdir"/* | xargs -n "$setsize" | while read workset; do
+				cp -p $workset "$dstdir"/ 2>/dev/null &
+			done 
+			wait 
+			} 2>&1 )
 
 		# Reinit destination folder
 		rm -r $dstdir
@@ -53,8 +61,13 @@ function runTest {
 
 		# Let it initialize
 		sleep 1
-
-		time_block=$( { time cp -R $srcdir/ $dstdir/ 2>/dev/null } 2>&1 )
+		
+		time_no_block=$( { time
+			ls -1 "$srcdir"/* | xargs -n "$setsize" | while read workset; do
+				cp -p $workset "$dstdir"/ 2>/dev/null &
+			done 
+			wait 
+			} 2>&1 )
 
 		# Cleanup
 		sudo pkill -15 blockerd
@@ -78,11 +91,3 @@ for files in 50 100 200 400 600 800 1000; do
 	done
 done
 #read -e "?Check stats. Ready to continue? "
-
-#MAX_PARALLEL=4
-#nroffiles=$(ls "$SOURCEDIR" | wc -w)
-#setsize=$(( nroffiles/MAX_PARALLEL + 1 ))
-#ls -1 "$SOURCEDIR"/* | xargs -n "$setsize" | while read workset; do
-#  cp -p "$workset" "$TARGETDIR" &
-#done
-#wait
