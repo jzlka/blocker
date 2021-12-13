@@ -1,10 +1,10 @@
 Control of External Devices on macOS
 ===
-[![Build Status](https://travis-ci.com/TheKuko/blocker.svg?branch=master)](https://travis-ci.com/TheKuko/blocker)
+[![Build Status](https://app.travis-ci.com/jzlka/blocker.svg?branch=master)](https://app.travis-ci.com/jzlka/blocker)
 
 
 PoC of restricting an access to cloud drives. Uses Endpoint Security framework and currently supports iCloud and (partially) Dropbox.
- Its functionality is described in *[thesis.pdf](https://thekuko.github.io/blocker/docs/thesis.pdf)* (Chapter 8).
+ Its functionality is described in *[thesis.pdf](https://jzlka.github.io/blocker/docs/thesis.pdf)* (Chapter 8).
 
 ### Features ###
 - Shows way of restricting work with **iCloud**
@@ -21,13 +21,13 @@ The application was tested on the following platforms:
 
 ## Build
 ```bash
-git clone https://github.com/TheKuko/blocker.git
+git clone https://github.com/jzlka/blocker.git
 cd blocker/blocker/blockerd
 make && cd ../ && ./sign.sh && cd blockerd
 ```
 or
 ```bash
-git clone https://github.com/TheKuko/blocker.git
+git clone https://github.com/jzlka/blocker.git
 cd blocker/blocker/
 #xcbuild TODO
 ```
@@ -68,5 +68,5 @@ Jozef Zuzelka
 
 
 ## More information
-* ZUZELKA, Jozef. Control of External Devices on macOS to Prevent Data Leaks. Brno, 2020. Master’s thesis. Brno University of Technology, Faculty of Information Technology. Supervisor Ing. Jan Pluskal ([thesis.pdf](https://thekuko.github.io/blocker/docs/thesis.pdf))
+* ZUZELKA, Jozef. Control of External Devices on macOS to Prevent Data Leaks. Brno, 2020. Master’s thesis. Brno University of Technology, Faculty of Information Technology. Supervisor Ing. Jan Pluskal ([thesis.pdf](https://jzlka.github.io/blocker/docs/thesis.pdf))
 
